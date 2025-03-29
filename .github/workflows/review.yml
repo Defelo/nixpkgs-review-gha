@@ -1,6 +1,8 @@
 name: review
 run-name: "review #${{ inputs.pr }}"
 
+permissions: {}
+
 on:
   workflow_dispatch:
     inputs:
@@ -111,16 +113,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: NixOS/nixpkgs
+          persist-credentials: false
 
       - name: wait for upstream eval
         if: ${{ !inputs.local-eval }}
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr }}
         run: |
           start=$(date +%s)
           timeout=900
           while [[ $(( $(date +%s) - $start )) -lt $timeout ]]; do
-            status=$(gh pr -R nixos/nixpkgs checks ${{ inputs.pr }} --json 'state,name,workflow' -q '.[]|select(.name=="Process" and (.workflow=="Eval" or .workflow==".github/workflows/eval.yml"))|.state')
+            status=$(gh pr -R nixos/nixpkgs checks ${PR_NUMBER} --json 'state,name,workflow' -q '.[]|select(.name=="Process" and (.workflow=="Eval" or .workflow==".github/workflows/eval.yml"))|.state')
             if [[ -z "$status" ]]; then echo "Failed to find eval check"
             else echo "Eval status: ${status}"; fi
             if [[ "$status" = "SUCCESS" ]]; then break; fi
@@ -130,7 +134,7 @@ jobs:
       - name: run nixpkgs-review
         run: |
           nixpkgs-review -- \
-            pr ${{ inputs.pr }} \
+            pr ${PR_NUMBER} \
             --eval ${{ inputs.local-eval && 'local' || 'auto' }} \
             --no-shell \
             --no-headers \
@@ -138,6 +142,7 @@ jobs:
             --build-args="-L" \
             || true
         env:
+          PR_NUMBER: ${{ inputs.pr }}
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: push results to cache
@@ -145,7 +150,7 @@ jobs:
         run: |
           set -ex
 
-          (realpath -qe ~/.cache/nixpkgs-review/pr-${{ inputs.pr }}/results/* || true) > paths
+          (realpath -qe ~/.cache/nixpkgs-review/pr-${PR_NUMBER}/results/* || true) > paths
           [[ -s paths ]] || exit 0
 
           if [[ ${{ vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
@@ -167,7 +172,7 @@ jobs:
 
           [[ "$is_public" = true ]] || exit 0
 
-          echo "nix-store -r --add-root nixpkgs-pr-${{ inputs.pr }}-${{ matrix.system }} \\" >> fetch_cmd
+          echo "nix-store -r --add-root nixpkgs-pr-${PR_NUMBER}-${{ matrix.system }} \\" >> fetch_cmd
           echo "  --option binary-caches 'https://cache.nixos.org/ $substituter_endpoint' \\" >> fetch_cmd
           echo "  --option trusted-public-keys '" >> fetch_cmd
           echo "  cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" >> fetch_cmd
@@ -178,6 +183,7 @@ jobs:
             echo -n "  $p" >> fetch_cmd
           done
         env:
+          PR_NUMBER: ${{ inputs.pr }}
           ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
           ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
           ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
@@ -198,10 +204,12 @@ jobs:
             cat fetch_cmd
             echo fetch_cmd_${{ matrix.system }}=$(base64 -w0 fetch_cmd) >> "$GITHUB_OUTPUT"
           fi
-          dir=~/.cache/nixpkgs-review/pr-${{ inputs.pr }}
+          dir=~/.cache/nixpkgs-review/pr-${PR_NUMBER}
           cat $dir/report.md
           report=$(jq -c '.+{$md}' $dir/report.json --rawfile md $dir/report.md | base64 -w0)
           echo report_${{ matrix.system }}=$report >> "$GITHUB_OUTPUT"
+        env:
+          PR_NUMBER: ${{ inputs.pr }}
 
   report:
     runs-on: ubuntu-latest
@@ -216,15 +224,15 @@ jobs:
         run: |
           echo -e "## \`nixpkgs-review\` result\n" >> report.md
           echo -e "Generated using [\`nixpkgs-review-gha\`](https://github.com/Defelo/nixpkgs-review-gha)\n" >> report.md
-          echo -e "Command: \`nixpkgs-review pr ${{ inputs.pr }}\`\n" >> report.md
+          echo -e "Command: \`nixpkgs-review pr ${PR_NUMBER}\`\n" >> report.md
           echo -e "Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\n" >> report.md
 
           mkdir .tmp
           cd .tmp
-          echo ${{ needs.review.outputs.fetch_cmd_x86_64-linux }} | base64 -d > x86_64-linux
-          echo ${{ needs.review.outputs.fetch_cmd_aarch64-linux }} | base64 -d > aarch64-linux
-          echo ${{ needs.review.outputs.fetch_cmd_x86_64-darwin }} | base64 -d > x86_64-darwin
-          echo ${{ needs.review.outputs.fetch_cmd_aarch64-darwin }} | base64 -d > aarch64-darwin
+          echo ${FETCH_CMD_X86_64_LINUX} | base64 -d > x86_64-linux
+          echo ${FETCH_CMD_AARCH64_LINUX} | base64 -d > aarch64-linux
+          echo ${FETCH_CMD_X86_64_DARWIN} | base64 -d > x86_64-darwin
+          echo ${FETCH_CMD_AARCH64_DARWIN} | base64 -d > aarch64-darwin
           for system in x86_64-linux aarch64-linux x86_64-darwin aarch64-darwin; do
             [[ -s $system ]] || continue
             echo -e "<li><details><summary><code>$system</code></summary>\n\n\`\`\`shell" >> ../cache.md
@@ -239,10 +247,10 @@ jobs:
           fi
 
           mkdir reports
-          echo ${{ needs.review.outputs.report_x86_64-linux }} | base64 -d > reports/x86_64-linux.json
-          echo ${{ needs.review.outputs.report_aarch64-linux }} | base64 -d > reports/aarch64-linux.json
-          echo ${{ needs.review.outputs.report_x86_64-darwin }} | base64 -d > reports/x86_64-darwin.json
-          echo ${{ needs.review.outputs.report_aarch64-darwin }} | base64 -d > reports/aarch64-darwin.json
+          echo ${REPORT_X86_64_LINUX} | base64 -d > reports/x86_64-linux.json
+          echo ${REPORT_AARCH64_LINUX} | base64 -d > reports/aarch64-linux.json
+          echo ${REPORT_X86_64_DARWIN} | base64 -d > reports/x86_64-darwin.json
+          echo ${REPORT_AARCH64_DARWIN} | base64 -d > reports/aarch64-darwin.json
           for system in x86_64-linux aarch64-linux x86_64-darwin aarch64-darwin; do
             if [[ -s reports/$system.json ]]; then
               jq -r '.md' reports/$system.json >> report.md
@@ -252,6 +260,16 @@ jobs:
           cat report.md
           echo report=$(base64 -w0 report.md) >> "$GITHUB_OUTPUT"
           echo success=$(jq -s 'all(.[].result[]; .failed==[])' reports/*.json) >> "$GITHUB_OUTPUT"
+        env:
+          PR_NUMBER: ${{ inputs.pr }}
+          FETCH_CMD_X86_64_LINUX: ${{ needs.review.outputs.fetch_cmd_x86_64-linux }}
+          FETCH_CMD_AARCH64_LINUX: ${{ needs.review.outputs.fetch_cmd_aarch64-linux }}
+          FETCH_CMD_X86_64_DARWIN: ${{ needs.review.outputs.fetch_cmd_x86_64-darwin }}
+          FETCH_CMD_AARCH64_DARWIN: ${{ needs.review.outputs.fetch_cmd_aarch64-darwin }}
+          REPORT_X86_64_LINUX: ${{ needs.review.outputs.report_x86_64-linux }}
+          REPORT_AARCH64_LINUX: ${{ needs.review.outputs.report_aarch64-linux }}
+          REPORT_X86_64_DARWIN: ${{ needs.review.outputs.report_x86_64-darwin }}
+          REPORT_AARCH64_DARWIN: ${{ needs.review.outputs.report_aarch64-darwin }}
 
   post-result:
     runs-on: ubuntu-latest
@@ -261,22 +279,26 @@ jobs:
 
     steps:
       - name: fetch report
-        run: echo ${{ needs.report.outputs.report }} | base64 -d > report.md
+        run: echo ${REPORT} | base64 -d > report.md
+        env:
+          REPORT: ${{ needs.report.outputs.report }}
 
       - name: post comment
         if: ${{ inputs.post-result }}
         run: |
           if [[ -n "$GH_TOKEN" ]]; then
-            gh pr -R NixOS/nixpkgs comment ${{ inputs.pr }} -F report.md
+            gh pr -R NixOS/nixpkgs comment ${PR_NUMBER} -F report.md
           fi
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr }}
 
       - name: approve pull request
         if: ${{ inputs.approve-on-success && needs.report.outputs.success == 'true' }}
         run: |
           if [[ -n "$GH_TOKEN" ]]; then
-            gh pr -R NixOS/nixpkgs review ${{ inputs.pr }} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`." || true
+            gh pr -R NixOS/nixpkgs review ${PR_NUMBER} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`." || true
           fi
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr }}
