@@ -68,9 +68,9 @@ jobs:
       || (matrix.system == 'aarch64-darwin' && 'macos-latest') }}
 
     steps:
-      - name: prepare /nix
-        run: sudo mkdir /mnt/nix && sudo mount -m -o bind /mnt/nix /nix
-        if: ${{ matrix.system == 'x86_64-linux' || matrix.system == 'aarch64-linux' }}
+      - uses: wimpysworld/nothing-but-nix@v6
+        with:
+          nix-permission-edict: true
 
       - name: install nix
         uses: cachix/install-nix-action@v31
