@@ -99,9 +99,9 @@ jobs:
       fetch_cmd_aarch64-darwin: ${{ steps.report.outputs.fetch_cmd_aarch64-darwin }}
 
     steps:
-      - name: prepare /nix
-        run: sudo mkdir /mnt/nix && sudo mount -m -o bind /mnt/nix /nix
-        if: ${{ matrix.system == 'x86_64-linux' || matrix.system == 'aarch64-linux' }}
+      - uses: wimpysworld/nothing-but-nix@v6
+        with:
+          nix-permission-edict: true
 
       - name: install nix
         uses: cachix/install-nix-action@v31
