@@ -1,0 +1,38 @@
+name: self-update
+
+permissions: {}
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -exuo pipefail
+
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::GH_SELF_UPDATE_TOKEN secret is not set. Please either set this secret or disable this workflow."
+            exit 1
+          fi
+
+          gh auth setup-git
+          gh repo clone "$REPOSITORY" .
+
+          if ! git rev-parse remotes/upstream/HEAD &> /dev/null; then
+            echo "::error::This is not a fork. Please disable this workflow."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git rebase upstream/HEAD
+          git push --force-with-lease
+
+        env:
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GH_SELF_UPDATE_TOKEN }}
