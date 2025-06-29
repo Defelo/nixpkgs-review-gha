@@ -16,10 +16,15 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 2. In your fork, go to the [Actions](../../actions) tab and enable GitHub Actions workflows.
 
 ### Post Results / Auto Approve (optional)
-If you want nixpkgs-review-gha to automatically post the results on the reviewed pull requests or automatically approve them, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens):
+If you want nixpkgs-review-gha to automatically post the results on the reviewed pull requests or automatically approve them, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) or install a [GitHub App](https://docs.github.com/en/apps/overview) and add its `APP_ID` and `APP_PRIVATE_KEY`:
 
-1. Go to <https://github.com/settings/tokens> and generate a new **classic** token with the `public_repo` scope.
-2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_TOKEN` and set its value to the personal access token you generated before.
+- If using a personal access token:
+    1. Go to <https://github.com/settings/tokens> and generate a new **classic** token with the `public_repo` scope.
+    2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_TOKEN` and set its value to the personal access token you generated before.
+- If installing a GitHub App:
+    1. [Register a new GitHub App](https://docs.github.com/apps/creating-github-apps/setting-up-a-github-app/creating-a-github-app) with "Read and write" access for "Pull requests".
+    2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository variable](../../settings/variables/actions/new) with the name `APP_ID` and set its value to your app's ID or Client ID.
+    3. While in "Settings" > "Secrets and variables" > "Actions", also [add a new repository secret](../../settings/secrets/actions/new) with the name `APP_PRIVATE_KEY` and set its value to your app's private key.
 
 ### Push to Attic Cache (optional)
 Follow these steps if you want nixpkgs-review-gha to push new packages to an [Attic](https://github.com/zhaofengli/attic) cache. Replace `$CACHE` with the name of your cache (e.g. `nixpkgs`) and `$SERVER` with the url of your Attic server (e.g. `https://attic.example.com/`):

@@ -286,14 +286,32 @@ jobs:
         env:
           REPORT: ${{ needs.report.outputs.report }}
 
+      - name: create github app token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        if: ${{ vars.APP_ID }}
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: set token
+        env:
+          PAT_TOKEN: ${{ secrets.GH_TOKEN }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          echo "pat: $(head -c8 <<< "$PAT_TOKEN")"
+          echo "app: $(head -c8 <<< "$APP_TOKEN")"
+          GH_TOKEN="${APP_TOKEN:-$PAT_TOKEN}"
+          echo "GH_TOKEN: $(head -c8 <<< "$GH_TOKEN")"
+          echo "GH_TOKEN=${GH_TOKEN}" >> "$GITHUB_ENV"
+
       - name: post comment
         if: ${{ inputs.post-result }}
         run: |
           if [[ -n "$GH_TOKEN" ]]; then
             gh pr -R NixOS/nixpkgs comment ${PR_NUMBER} -F report.md
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: approve pull request
         if: ${{ inputs.approve-on-success && needs.report.outputs.success == 'true' }}
@@ -301,5 +319,3 @@ jobs:
           if [[ -n "$GH_TOKEN" ]]; then
             gh pr -R NixOS/nixpkgs review ${PR_NUMBER} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`." || true
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
