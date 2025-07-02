@@ -17,21 +17,70 @@ const reviewDefaults = ({
   targetBranch,
   hasLinuxRebuilds,
   hasDarwinRebuilds,
+  state,
 }) => {
-  const darwinSandbox = "relaxed";
+  const darwinSandboxFalseList = ["miniserve"];
 
+  const testMap = [
+    [["radicle-native-ci", "radicle-job"], "nixosTests.radicle-ci-broker"],
+    [["fastfetch"], "fastfetch.minimal"],
+  ];
+  const testPackages = [
+    "alertmanager-ntfy",
+    "anubis",
+    "chhoto-url",
+    "echoip",
+    "flap-alerted",
+    "glance",
+    "glitchtip",
+    "go-httpbin",
+    "ifstate",
+    "olivetin",
+    "olivetin-3k",
+    "privatebin",
+    "radicle-httpd",
+    "radicle-node",
+    "radicle-node-unstable",
+    "taplo",
+    "uiua",
+    "uiua-unstable",
+    "whoami",
+    "zipline",
+  ];
+
+  const skipMap = [[["taplo"], "servo"]];
+
+  const pkgsChanged = new Set(
+    commits.map(x => /^([a-zA-Z0-9._-]+):/.exec(x.subject)?.[1]).filter(x => x && x != "treewide"),
+  );
+  const anyPkgsChanged = pkgs => !!pkgsChanged.intersection(new Set(pkgs)).size;
+
+  const extraPkgs = new Set(
+    testMap
+      .filter(([pkgs]) => anyPkgsChanged(pkgs))
+      .map(([, test]) => test)
+      .concat([...pkgsChanged.intersection(new Set(testPackages))].map(pkg => `${pkg}.tests`)),
+  );
+
+  const skipPkgs = new Set(
+    skipMap.filter(([pkgs, skip]) => anyPkgsChanged(pkgs) && !anyPkgsChanged([skip])).map(([, skip]) => skip),
+  );
+
+  const darwinSandbox = anyPkgsChanged(darwinSandboxFalseList) ? "false" : "relaxed";
   const hasRebuilds = hasLinuxRebuilds || hasDarwinRebuilds;
   const targetsStableRelease = targetBranch.match(/-\d\d\.\d\d$/);
 
   return {
-    // "branch": "main",
+    branch: "private",
     "x86_64-linux": !hasRebuilds || hasLinuxRebuilds,
     "aarch64-linux": !hasRebuilds || hasLinuxRebuilds,
-    "x86_64-darwin":
-      targetsStableRelease && (!hasRebuilds || hasDarwinRebuilds) ? `yes_sandbox_${darwinSandbox}` : "no",
+    "x86_64-darwin": "no",
     "aarch64-darwin": !hasRebuilds || hasDarwinRebuilds ? `yes_sandbox_${darwinSandbox}` : "no",
     // "riscv64-linux": false,
-    // "extra-args": "",
+    "extra-args": [...extraPkgs]
+      .map(pkg => `-a ${pkg}`)
+      .concat([...skipPkgs].map(pkg => `--skip-package ${pkg}`))
+      .join(" "),
     // "push-to-cache": true,
     // "upterm": false,
     // "post-result": true,
