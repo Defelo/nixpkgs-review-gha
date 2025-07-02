@@ -99,20 +99,61 @@ jobs:
       fetch_cmd_aarch64-darwin: ${{ steps.report.outputs.fetch_cmd_aarch64-darwin }}
 
     steps:
-      - name: prepare /nix
-        run: sudo mkdir /mnt/nix && sudo mount -m -o bind /mnt/nix /nix
-        if: ${{ matrix.system == 'x86_64-linux' || matrix.system == 'aarch64-linux' }}
+      - name: reclaim space (linux)
+        if: runner.os == 'Linux'
+        uses: wimpysworld/nothing-but-nix@main
+        with:
+          hatchet-protocol: rampage
+
+        # FIXME: takes ~9m on x86, but only ~2m on ARM
+        # TODO: figure out why
+        # - filesystem differences?
+        # - can we parallelize the `rm`? E.g. `find | parallel rm`
+      - name: reclaim space (darwin)
+        if: runner.os == 'macOS'
+        run: |
+          echo "::group::disk space (before)"
+          sudo df -h
+          echo "::endgroup::"
+
+          echo "::group::remove files"
+          sudo rm -rf \
+            /Applications/Xcode_* \
+            /Library/Developer/CoreSimulator \
+            /Library/Frameworks \
+            /Users/runner/.dotnet \
+            /Users/runner/.rustup \
+            /Users/runner/Library/Android \
+            /Users/runner/Library/Caches \
+            /Users/runner/Library/Developer/CoreSimulator \
+            /Users/runner/hostedtoolcache
+          echo "::endgroup::"
+
+          echo "::group::disable mds"
+          sudo mdutil -i off -a || echo "mdutil failed"
+          sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist \
+           || echo "launchctl unload failed"
+          echo "::endgroup::"
+
+          echo "::group::disk space (after)"
+          sudo df -h
+          echo "::endgroup::"
 
       - name: install nix
         uses: cachix/install-nix-action@v31
         with:
+          # Putting build-dir in /nix is a workaround for https://github.com/wimpysworld/nothing-but-nix/issues/18
           extra_nix_config: |
+            build-dir = /nix/build
             sandbox = ${{
               (matrix.system == 'x86_64-darwin' && inputs.x86_64-darwin == 'yes_sandbox_false'
                 || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_false') && 'false'
               || (matrix.system == 'x86_64-darwin' && inputs.x86_64-darwin == 'yes_sandbox_relaxed'
                 || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_relaxed') && 'relaxed'
               || 'true' }}
+
+      - name: create build-dir
+        run: sudo mkdir -p /nix/build
 
       - name: install packages
         run: |
