@@ -78,7 +78,7 @@ on:
         description: "Build tests of affected packages"
         required: true
         type: boolean
-        default: false
+        default: true
       extra-args:
         description: "nixpkgs-review extra args"
         required: false
