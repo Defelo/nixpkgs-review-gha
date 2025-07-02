@@ -6,22 +6,65 @@
 
 const repo = "Defelo/nixpkgs-review-gha";
 
-const reviewDefaults = ({ title, commits, labels, author, authoredByMe, hasLinuxRebuilds, hasDarwinRebuilds }) => {
-  const darwinSandbox = "true";
+const reviewDefaults = ({
+  title,
+  commits,
+  labels,
+  author,
+  authoredByMe,
+  hasLinuxRebuilds,
+  hasDarwinRebuilds,
+  state,
+}) => {
+  const darwinSandboxFalseList = ["miniserve", "radicle-ci-broker"];
+  const darwinSandboxRelaxedList = ["jujutsu", "smtp4dev"];
+  const x8664DarwinSkipList = [];
+
+  const testMap = [[["radicle-ci-broker", "radicle-native-ci"], "nixosTests.radicle-ci-broker"]];
+  const testPackages = [
+    "alertmanager-ntfy",
+    "anubis",
+    "chhoto-url",
+    "echoip",
+    "glitchtip",
+    "go-httpbin",
+    "olivetin",
+    "radicle-node",
+    "uiua",
+    "uiua-unstable",
+    "whoami",
+    "zipline",
+  ];
+
+  const pkgsChanged = pkgs => pkgs.some(p => commits.some(({ subject }) => subject.startsWith(`${p}:`)));
+
+  const extraPkgs = new Set(
+    testMap
+      .filter(([pkgs]) => pkgsChanged(pkgs))
+      .map(([, test]) => test)
+      .concat(testPackages.filter(pkg => pkgsChanged([pkg])).map(pkg => `${pkg}.tests`)),
+  );
+
+  const darwinSandbox = pkgsChanged(darwinSandboxFalseList)
+    ? "false"
+    : pkgsChanged(darwinSandboxRelaxedList)
+      ? "relaxed"
+      : true;
 
   const hasRebuilds = hasLinuxRebuilds || hasDarwinRebuilds;
 
   return {
-    // "branch": "main",
+    branch: "private",
     "x86_64-linux": !hasRebuilds || hasLinuxRebuilds,
     "aarch64-linux": !hasRebuilds || hasLinuxRebuilds,
-    "x86_64-darwin": !hasRebuilds || hasDarwinRebuilds ? `yes_sandbox_${darwinSandbox}` : "no",
+    "x86_64-darwin":
+      !hasRebuilds || (hasDarwinRebuilds && !pkgsChanged(x8664DarwinSkipList)) ? `yes_sandbox_${darwinSandbox}` : "no",
     "aarch64-darwin": !hasRebuilds || hasDarwinRebuilds ? `yes_sandbox_${darwinSandbox}` : "no",
-    // "extra-args": "",
+    "extra-args": [...extraPkgs].map(pkg => `-a ${pkg}`).join(" "),
     // "push-to-cache": true,
     // "upterm": false,
     // "post-result": true,
-    // "on-success": "nothing",
+    "on-success": state === "DRAFT" ? "mark_as_ready" : "nothing",
   };
 };
 
