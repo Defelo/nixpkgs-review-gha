@@ -24,7 +24,7 @@ on:
         description: "Build on x86_64-darwin"
         required: true
         type: choice
-        default: yes_sandbox_relaxed
+        default: yes_sandbox_true
         options:
           - "no"
           - yes_sandbox_false
@@ -34,7 +34,7 @@ on:
         description: "Build on aarch64-darwin"
         required: true
         type: choice
-        default: yes_sandbox_relaxed
+        default: yes_sandbox_true
         options:
           - "no"
           - yes_sandbox_false
