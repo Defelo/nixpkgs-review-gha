@@ -19,7 +19,7 @@ const reviewDefaults = ({ title, commits, labels, author, authoredByMe, hasLinux
     // "push-to-cache": true,
     // "upterm": false,
     // "post-result": true,
-    // "approve-on-success": false,
+    // "on-success": "nothing",
   };
 };
 

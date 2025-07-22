@@ -62,11 +62,15 @@ on:
         required: true
         type: boolean
         default: true
-      approve-on-success:
-        description: "Approve PR on review success"
+      on-success:
+        description: "What to do on review success"
         required: true
-        type: boolean
-        default: false
+        type: choice
+        default: nothing
+        options:
+          - nothing
+          - approve
+          - merge
 
 jobs:
   prepare:
@@ -75,6 +79,7 @@ jobs:
       pr: ${{ steps.pr.outputs.pr }}
       head: ${{ steps.pr.outputs.head }}
       merge: ${{ steps.pr.outputs.merge }}
+      author_id: ${{ steps.pr.outputs.author_id }}
 
     steps:
       - name: get pr
@@ -89,6 +94,7 @@ jobs:
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
           echo "head=$(jq -r '.head.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
           echo "merge=$(jq -r '.merge_commit_sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "author_id=$(jq -r '.user.id' <<< "$pr")" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -186,7 +192,7 @@ jobs:
           if [[ ${{ vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
             attic login default "$ATTIC_SERVER" "$ATTIC_TOKEN"
             if ! attic cache info "$ATTIC_CACHE"; then
-              echo "::error:: attic returned an error"
+              echo "::error::attic returned an error"
               exit 0
             fi
             attic push --stdin "$ATTIC_CACHE" < paths
@@ -319,8 +325,8 @@ jobs:
 
   post-result:
     runs-on: ubuntu-latest
-    needs: [report]
-    if: ${{ inputs.post-result || inputs.approve-on-success }}
+    needs: [prepare, report]
+    if: ${{ inputs.post-result || inputs.on-success != 'nothing' }}
 
     steps:
       - name: fetch report
@@ -338,10 +344,42 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: approve pull request
-        if: ${{ inputs.approve-on-success && needs.report.outputs.success == 'true' }}
+        if: ${{ needs.report.outputs.success == 'true' && (inputs.on-success == 'approve' || inputs.on-success == 'merge') }}
         run: |
-          if [[ -n "$GH_TOKEN" ]]; then
-            gh pr -R NixOS/nixpkgs review ${PR_NUMBER} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`." || true
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::Cannot approve the PR because no GH_TOKEN has been configured."
+            exit 1
+          fi
+          user_id="$(gh api /user --jq .id)"
+          if [[ "$user_id" != "$PR_AUTHOR_ID" ]]; then
+            gh pr -R NixOS/nixpkgs review ${PR_NUMBER} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`."
+          elif [[ "${{ inputs.on-success }}" = "approve" ]]; then
+            echo "::error::You cannot approve your own pull request."
+            exit 1
           fi
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PR_AUTHOR_ID: ${{ needs.prepare.outputs.author_id }}
+
+      - name: merge pull request
+        if: ${{ needs.report.outputs.success == 'true' && inputs.on-success == 'merge' }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::Cannot merge the PR because no GH_TOKEN has been configured."
+            exit 1
+          fi
+
+          is_committer="$(gh api /repos/NixOS/nixpkgs --jq .permissions.push)"
+          if [[ "$is_committer" = true ]]; then
+            gh pr -R NixOS/nixpkgs merge ${PR_NUMBER} --merge --match-head-commit "$HEAD"
+          else
+            current_head="$(gh api "/repos/NixOS/nixpkgs/pulls/$PR_NUMBER" --jq .head.sha)"
+            if [[ "$current_head" != "$HEAD" ]]; then
+              echo "::error::Refusing to merge because the head branch was modified (expected $HEAD, got $current_head instead)"
+              exit 1
+            fi
+            gh pr -R NixOS/nixpkgs comment ${PR_NUMBER} -b "@NixOS/nixpkgs-merge-bot merge"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          HEAD: ${{ needs.prepare.outputs.head }}
