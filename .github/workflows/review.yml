@@ -62,14 +62,44 @@ on:
         required: true
         type: boolean
         default: true
-      approve-on-success:
-        description: "Approve PR on review success"
+      on-success:
+        description: "What to do on review success"
         required: true
-        type: boolean
-        default: false
+        type: choice
+        default: nothing
+        options:
+          - nothing
+          - approve
+          - merge
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+      head: ${{ steps.pr.outputs.head }}
+      merge: ${{ steps.pr.outputs.merge }}
+      author_id: ${{ steps.pr.outputs.author_id }}
+
+    steps:
+      - name: get pr
+        id: pr
+        run: |
+          pr="$(gh api "/repos/NixOS/nixpkgs/pulls/$PR_NUMBER")"
+          jq <<< "$pr"
+          if [[ "$(jq '.merged or .mergeable' <<< "$pr")" != "true" ]]; then
+            echo "::error::PR is not mergeable"
+            exit 1
+          fi
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "head=$(jq -r '.head.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "merge=$(jq -r '.merge_commit_sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "author_id=$(jq -r '.user.id' <<< "$pr")" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   review:
+    needs: [prepare]
     strategy:
       fail-fast: false
       matrix:
@@ -101,7 +131,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: .github/actions
+          sparse-checkout: |
+            .github/actions
+            packages.nix
 
       - name: setup nix
         uses: ./.github/actions/setup-nix
@@ -122,9 +154,7 @@ jobs:
           elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
             pkgs+=(cachix)
           fi
-          args=()
-          for pkg in ${pkgs[@]}; do args+=("github:nixos/nixpkgs/nixpkgs-unstable#$pkg"); done
-          nix profile install ${args[@]}
+          nix profile install -f packages.nix ${pkgs[@]}
 
       - name: clone nixpkgs
         uses: actions/checkout@v4
@@ -141,12 +171,15 @@ jobs:
             --no-headers \
             --print-result \
             --build-args="-L" \
+            --pr-json="$PR_JSON" \
+            --no-pr-lookup \
             $EXTRA_ARGS \
             || true
         working-directory: nixpkgs
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
+          PR_JSON: ${{ needs.prepare.outputs.pr }}
 
       - name: push results to cache
         if: ${{ inputs.push-to-cache && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '') }}
@@ -159,7 +192,7 @@ jobs:
           if [[ ${{ vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
             attic login default "$ATTIC_SERVER" "$ATTIC_TOKEN"
             if ! attic cache info "$ATTIC_CACHE"; then
-              echo "::error:: attic returned an error"
+              echo "::error::attic returned an error"
               exit 0
             fi
             attic push --stdin "$ATTIC_CACHE" < paths
@@ -227,7 +260,7 @@ jobs:
 
   report:
     runs-on: ubuntu-latest
-    needs: [review]
+    needs: [prepare, review]
     outputs:
       report: ${{ steps.report.outputs.report }}
       success: ${{ steps.report.outputs.success }}
@@ -238,7 +271,9 @@ jobs:
         run: |
           echo -e "## \`nixpkgs-review\` result\n" >> report.md
           echo -e "Generated using [\`nixpkgs-review-gha\`](https://github.com/Defelo/nixpkgs-review-gha)\n" >> report.md
-          echo -e "Command: \`nixpkgs-review pr ${PR_NUMBER}${EXTRA_ARGS:+ $EXTRA_ARGS}\`\n" >> report.md
+          echo -e "Command: \`nixpkgs-review pr ${PR_NUMBER}${EXTRA_ARGS:+ $EXTRA_ARGS}\`" >> report.md
+          echo -e "Commit: [\`$HEAD\`](https://github.com/NixOS/nixpkgs/commit/$HEAD) ([subsequent changes](https://github.com/NixOS/nixpkgs/compare/$HEAD..pull/$PR_NUMBER/head))" >> report.md
+          echo -e "Merge: [\`$MERGE\`](https://github.com/NixOS/nixpkgs/commit/$MERGE)\n" >> report.md
           echo -e "Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\n" >> report.md
 
           mkdir .tmp
@@ -276,6 +311,8 @@ jobs:
           echo success=$(jq -s 'all(.[].result[]; .failed==[])' reports/*.json) >> "$GITHUB_OUTPUT"
           sed '1s|$| for [#'"$PR_NUMBER"'](https://github.com/NixOS/nixpkgs/pull/'"$PR_NUMBER"')|' report.md >> $GITHUB_STEP_SUMMARY
         env:
+          HEAD: ${{ needs.prepare.outputs.head }}
+          MERGE: ${{ needs.prepare.outputs.merge }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
           FETCH_CMD_X86_64_LINUX: ${{ needs.review.outputs.fetch_cmd_x86_64-linux }}
           FETCH_CMD_AARCH64_LINUX: ${{ needs.review.outputs.fetch_cmd_aarch64-linux }}
@@ -288,8 +325,8 @@ jobs:
 
   post-result:
     runs-on: ubuntu-latest
-    needs: [report]
-    if: ${{ inputs.post-result || inputs.approve-on-success }}
+    needs: [prepare, report]
+    if: ${{ inputs.post-result || inputs.on-success != 'nothing' }}
 
     steps:
       - name: fetch report
@@ -307,10 +344,42 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: approve pull request
-        if: ${{ inputs.approve-on-success && needs.report.outputs.success == 'true' }}
+        if: ${{ needs.report.outputs.success == 'true' && (inputs.on-success == 'approve' || inputs.on-success == 'merge') }}
         run: |
-          if [[ -n "$GH_TOKEN" ]]; then
-            gh pr -R NixOS/nixpkgs review ${PR_NUMBER} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`." || true
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::Cannot approve the PR because no GH_TOKEN has been configured."
+            exit 1
+          fi
+          user_id="$(gh api /user --jq .id)"
+          if [[ "$user_id" != "$PR_AUTHOR_ID" ]]; then
+            gh pr -R NixOS/nixpkgs review ${PR_NUMBER} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`."
+          elif [[ "${{ inputs.on-success }}" = "approve" ]]; then
+            echo "::error::You cannot approve your own pull request."
+            exit 1
           fi
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PR_AUTHOR_ID: ${{ needs.prepare.outputs.author_id }}
+
+      - name: merge pull request
+        if: ${{ needs.report.outputs.success == 'true' && inputs.on-success == 'merge' }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::Cannot merge the PR because no GH_TOKEN has been configured."
+            exit 1
+          fi
+
+          is_committer="$(gh api /repos/NixOS/nixpkgs --jq .permissions.push)"
+          if [[ "$is_committer" = true ]]; then
+            gh pr -R NixOS/nixpkgs merge ${PR_NUMBER} --merge --match-head-commit "$HEAD"
+          else
+            current_head="$(gh api "/repos/NixOS/nixpkgs/pulls/$PR_NUMBER" --jq .head.sha)"
+            if [[ "$current_head" != "$HEAD" ]]; then
+              echo "::error::Refusing to merge because the head branch was modified (expected $HEAD, got $current_head instead)"
+              exit 1
+            fi
+            gh pr -R NixOS/nixpkgs comment ${PR_NUMBER} -b "@NixOS/nixpkgs-merge-bot merge"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          HEAD: ${{ needs.prepare.outputs.head }}

@@ -8,7 +8,7 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 - Automatically post results on the reviewed pull request
 - Optionally start an [Upterm](https://upterm.dev/) session after nixpkgs-review has finished to allow interactive testing/debugging via SSH
 - Push new packages to an [Attic](https://github.com/zhaofengli/attic) or [Cachix](https://www.cachix.org/) cache
-- Automatically approve pull requests on review success
+- Automatically approve or merge pull requests on review success
 - Add a "Run nixpkgs-review" shortcut to pull request pages in nixpkgs
 
 ## Setup
@@ -16,8 +16,8 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 2. In your fork, go to the [Actions](../../actions) tab and enable GitHub Actions workflows.
 3. If you don't want to set up [automatic self-updates](#automatic-self-updates-optional), please disable the `self-update` workflow ([Actions / `self-update`](../../actions/workflows/self-update.yml) > `...` button (top right corner) > `Disable workflow`).
 
-### Post Results / Auto Approve (optional)
-If you want nixpkgs-review-gha to automatically post the results on the reviewed pull requests or automatically approve them, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens):
+### Post Results / Auto Approve/Merge (optional)
+If you want nixpkgs-review-gha to automatically post the results on the reviewed pull requests or automatically approve/merge them, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens):
 
 1. Go to <https://github.com/settings/tokens> and generate a new **classic** token with the `public_repo` scope.
 2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_TOKEN` and set its value to the personal access token you generated before.
