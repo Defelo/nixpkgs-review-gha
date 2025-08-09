@@ -78,6 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       pr: ${{ steps.pr.outputs.pr }}
+      base: ${{ steps.pr.outputs.base }}
+      base_ref: ${{ steps.pr.outputs.base_ref }}
       head: ${{ steps.pr.outputs.head }}
       merge: ${{ steps.pr.outputs.merge }}
       author_id: ${{ steps.pr.outputs.author_id }}
@@ -102,6 +104,8 @@ jobs:
             exit 1
           fi
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "base=$(jq -r '.base.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "base_ref=$(jq -r '.base.ref' <<< "$pr")" >> "$GITHUB_OUTPUT"
           echo "head=$(jq -r '.head.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
           echo "merge=$(jq -r '.merge_commit_sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
           echo "author_id=$(jq -r '.user.id' <<< "$pr")" >> "$GITHUB_OUTPUT"
@@ -136,6 +140,7 @@ jobs:
             .github/actions
             flake.lock
             flake.nix
+            generate_markdown_report.py
 
       - name: setup nix
         uses: ./.github/actions/setup-nix
@@ -151,7 +156,7 @@ jobs:
 
       - name: install packages
         run: |
-          pkgs=(coreutils nixpkgs-review jq gnused)
+          pkgs=(coreutils moreutils nixpkgs-review jq gnused generate-markdown-report)
           if [[ ${{ inputs.push-to-cache && vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
             pkgs+=(attic-client)
           elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
@@ -177,11 +182,38 @@ jobs:
             --build-args="-L" \
             --pr-json="$PR_JSON" \
             $EXTRA_ARGS
+
+          report_json=~/.cache/nixpkgs-review/pr-${PR_NUMBER}/report.json
+          report_md=~/.cache/nixpkgs-review/pr-${PR_NUMBER}/report.md
+          if failed=$(jq -er '.result[].failed[]' "$report_json"); then
+            git fetch origin "$BASE" && git switch -d "$BASE"
+            build=()
+            paths=()
+            for pkg in $failed; do
+              [[ "$(nix eval --impure --expr "import ./. {} ? ${pkg}")" = "true" ]] || continue
+              path=$(nix eval -f. "${pkg}.outPath" --raw) || continue
+              build+=("$pkg")
+              paths+=("$path")
+            done
+
+            if [[ ${#build[@]} -ne 0 ]]; then
+              nix build --keep-going -L -f. ${build[@]} || true
+            fi
+
+            for i in ${!build[@]}; do
+              ! nix store verify --no-contents --no-trust "${paths[i]}" || continue
+              jq '.result[].failed -= [$pkg] | .result[].still_failing += [$pkg]' --arg pkg "${build[i]}" "$report_json" | sponge "$report_json"
+            done
+          fi
+
+          generate-markdown-report "$report_json" "$report_md" "$BASE_REF" | sponge "$report_md"
         working-directory: nixpkgs
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
           PR_JSON: ${{ needs.prepare.outputs.pr }}
+          BASE: ${{ needs.prepare.outputs.base }}
+          BASE_REF: ${{ needs.prepare.outputs.base_ref }}
 
       - name: push results to cache
         if: ${{ inputs.push-to-cache && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '') }}
@@ -313,7 +345,7 @@ jobs:
           done
 
           cat report.md
-          echo success=$(jq -s 'all(.[].result[]; .failed==[])' report_*.json) >> "$GITHUB_OUTPUT"
+          echo success=$(jq -s 'all(.[].result[]; (.failed+.still_failing)==[])' report_*.json) >> "$GITHUB_OUTPUT"
           sed '1s|$| for [#'"$PR_NUMBER"'](https://github.com/NixOS/nixpkgs/pull/'"$PR_NUMBER"')|' report.md >> $GITHUB_STEP_SUMMARY
         env:
           HEAD: ${{ needs.prepare.outputs.head }}
