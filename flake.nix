@@ -27,6 +27,14 @@
     in
 
     {
+      packages = eachSystem (pkgs: {
+        generate-markdown-report = pkgs.writers.writePython3Bin "generate-markdown-report" {
+          flakeIgnore = [
+            "E501" # line too long
+          ];
+        } (builtins.readFile ./generate_markdown_report.py);
+      });
+
       overlays.nixpkgs-review = final: prev: {
         inherit (nixpkgs-review.packages.${final.system}) nixpkgs-review;
       };
@@ -45,6 +53,7 @@
 
       checks = eachSystem (pkgs: {
         inherit (pkgs) nixpkgs-review;
+        packages = pkgs.linkFarm "packages" self.packages.${pkgs.system};
         fmt = pkgs.runCommandNoCCLocal "fmt-check" { } ''
           cp -r --no-preserve=mode ${./.} repo
           ${lib.getExe self.formatter.${pkgs.system}} -C repo --ci --tree-root-file=treefmt.nix
