@@ -11,6 +11,15 @@
     "LICENSE"
   ];
 
+  formatter.black = {
+    command = lib.getExe pkgs.black;
+    includes = [ "*.py" ];
+    options = [
+      "--line-length=120"
+      "--skip-magic-trailing-comma"
+    ];
+  };
+
   formatter.nixfmt = {
     command = lib.getExe pkgs.nixfmt;
     includes = [ "*.nix" ];
