@@ -4,7 +4,7 @@
   };
 
   outputs =
-    { nixpkgs, ... }:
+    { self, nixpkgs, ... }:
 
     let
       inherit (nixpkgs) lib;
@@ -28,5 +28,13 @@
           ];
         }
       );
+
+      checks = eachSystem (pkgs: {
+        fmt = pkgs.runCommandNoCCLocal "fmt-check" { } ''
+          cp -r --no-preserve=mode ${./.} repo
+          ${lib.getExe self.formatter.${pkgs.system}} -C repo --ci --tree-root-file=treefmt.nix
+          touch $out
+        '';
+      });
     };
 }
