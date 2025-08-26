@@ -139,7 +139,8 @@ jobs:
         with:
           sparse-checkout: |
             .github/actions
-            packages.nix
+            flake.lock
+            flake.nix
 
       - name: setup nix
         uses: ./.github/actions/setup-nix
@@ -160,7 +161,7 @@ jobs:
           elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
             pkgs+=(cachix)
           fi
-          nix profile add -f packages.nix ${pkgs[@]}
+          nix profile add "${pkgs[@]/#/.#}"
 
       - name: clone nixpkgs
         uses: actions/checkout@v4
