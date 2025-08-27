@@ -29,7 +29,7 @@ on:
         type: choice
         default: yes_sandbox_true
         options:
-          - 'no'
+          - "no"
           - yes_sandbox_false
           - yes_sandbox_relaxed
           - yes_sandbox_true
@@ -39,7 +39,7 @@ on:
         type: choice
         default: yes_sandbox_true
         options:
-          - 'no'
+          - "no"
           - yes_sandbox_false
           - yes_sandbox_relaxed
           - yes_sandbox_true
@@ -139,7 +139,8 @@ jobs:
         with:
           sparse-checkout: |
             .github/actions
-            packages.nix
+            flake.lock
+            flake.nix
 
       - name: setup nix
         uses: ./.github/actions/setup-nix
@@ -147,11 +148,11 @@ jobs:
           system: ${{ matrix.system }}
           sandbox: ${{
             (matrix.system == 'x86_64-darwin' && inputs.x86_64-darwin == 'yes_sandbox_false'
-              || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_false') && 'false'
+            || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_false') && 'false'
             || (matrix.system == 'x86_64-darwin' && inputs.x86_64-darwin == 'yes_sandbox_relaxed'
-              || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_relaxed') && 'relaxed'
+            || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_relaxed') && 'relaxed'
             || 'true' }}
-      
+
       - name: install packages
         run: |
           pkgs=(coreutils nixpkgs-review jq gnused)
@@ -160,7 +161,7 @@ jobs:
           elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
             pkgs+=(cachix)
           fi
-          nix profile add -f packages.nix ${pkgs[@]}
+          nix profile add "${pkgs[@]/#/.#}"
 
       - name: clone nixpkgs
         uses: actions/checkout@v4
