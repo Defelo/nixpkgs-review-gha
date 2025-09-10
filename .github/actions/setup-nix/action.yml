@@ -1,11 +1,12 @@
 name: setup-nix
+description: Common setup for all actions in this repo
 
 inputs:
   system:
-    type: string
+    description: The system setting in nix.conf
     required: true
   sandbox:
-    type: string
+    description: The sandbox setting in nix.conf
     default: "true"
 
 runs:
