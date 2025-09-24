@@ -47,16 +47,20 @@ on:
         description: "nixpkgs-review extra args"
         required: false
         type: string
+      extra-build-args:
+        description: "nixpkgs-review build-args"
+        required: false
+        type: string
       push-to-cache:
         description: "Push to cache"
         required: true
         type: boolean
         default: true
-      upterm:
-        description: "Start upterm session after nixpkgs-review"
-        required: true
-        type: boolean
-        default: false
+      # upterm:
+      #   description: "Start upterm session after nixpkgs-review"
+      #   required: true
+      #   type: boolean
+      #   default: false
       post-result:
         description: "Post Result"
         required: true
@@ -177,7 +181,7 @@ jobs:
             --no-shell \
             --no-headers \
             --print-result \
-            --build-args="-L" \
+            --build-args="-L${EXTRA_BUILD_ARGS:+ $EXTRA_BUILD_ARGS}" \
             --pr-json="$PR_JSON" \
             $EXTRA_ARGS \
             || true
@@ -185,6 +189,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
+          EXTRA_BUILD_ARGS: ${{ inputs.extra-build-args }}
           PR_JSON: ${{ needs.prepare.outputs.pr }}
 
       - name: push results to cache
@@ -235,11 +240,11 @@ jobs:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
           CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
 
-      - name: start upterm session
-        if: ${{ inputs.upterm }}
-        uses: owenthereal/action-upterm@v1
-        with:
-          limit-access-to-actor: true
+      # - name: start upterm session
+      #   if: ${{ inputs.upterm }}
+      #   uses: owenthereal/action-upterm@v1
+      #   with:
+      #     limit-access-to-actor: true
 
       - name: generate report
         id: report
