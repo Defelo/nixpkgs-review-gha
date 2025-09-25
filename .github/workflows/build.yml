@@ -68,7 +68,7 @@ jobs:
       || (matrix.system == 'aarch64-darwin' && 'macos-latest') }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           sparse-checkout: .github/actions
 
@@ -89,6 +89,6 @@ jobs:
 
       - name: start upterm session
         if: ${{ inputs.upterm }}
-        uses: owenthereal/action-upterm@v1
+        uses: owenthereal/action-upterm@77f40a48f26e70aa301b03ade2e4e58b6aa1c4ef # v1.3.0
         with:
           limit-access-to-actor: true
