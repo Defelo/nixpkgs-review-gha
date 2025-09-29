@@ -51,6 +51,7 @@ runs:
           build-dir = /nix/build
           sandbox = ${{ inputs.sandbox }}
           system = ${{ inputs.system }}
+          log-lines = 50
 
     - name: create build-dir
       shell: bash
