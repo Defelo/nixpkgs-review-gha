@@ -78,6 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       pr: ${{ steps.pr.outputs.pr }}
+      base: ${{ steps.pr.outputs.base }}
+      base_ref: ${{ steps.pr.outputs.base_ref }}
       head: ${{ steps.pr.outputs.head }}
       merge: ${{ steps.pr.outputs.merge }}
       author_id: ${{ steps.pr.outputs.author_id }}
@@ -98,6 +100,8 @@ jobs:
             exit 1
           fi
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "base=$(jq -r '.base.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "base_ref=$(jq -r '.base.ref' <<< "$pr")" >> "$GITHUB_OUTPUT"
           echo "head=$(jq -r '.head.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
           echo "merge=$(jq -r '.merge_commit_sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
           echo "author_id=$(jq -r '.user.id' <<< "$pr")" >> "$GITHUB_OUTPUT"
@@ -139,8 +143,10 @@ jobs:
         with:
           sparse-checkout: |
             .github/actions
+            drv-build-support.nix
             flake.lock
             flake.nix
+            generate_markdown_report.py
 
       - name: setup nix
         uses: ./.github/actions/setup-nix
@@ -155,7 +161,7 @@ jobs:
 
       - name: install packages
         run: |
-          pkgs=(coreutils nixpkgs-review jq gnused)
+          pkgs=(coreutils moreutils nixpkgs-review jq gnused generate-markdown-report)
           if [[ ${{ inputs.push-to-cache && vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
             pkgs+=(attic-client)
           elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
@@ -181,11 +187,59 @@ jobs:
             --pr-json="$PR_JSON" \
             $EXTRA_ARGS \
             || true
+
+          report_json=~/.cache/nixpkgs-review/pr-${PR_NUMBER}/report.json
+          report_md=~/.cache/nixpkgs-review/pr-${PR_NUMBER}/report.md
+
+          if failed=$(jq -er '.result[].failed[]' "$report_json"); then
+            git fetch origin "$MERGE" && git switch -d "$MERGE"
+            tmp=$(mktemp -d)
+            nix config show --json > "$tmp/nix-config.json"
+            nix derivation show --recursive -f. $failed > "$tmp/drv-graph.json"
+            nix-instantiate --eval --strict --json ../drv-build-support.nix \
+              --argstr configPath "$tmp/nix-config.json" \
+              --argstr drvGraphPath "$tmp/drv-graph.json" \
+              > "$tmp/drv-build-support.json"
+
+            for pkg in $failed; do
+              drvPath=$(nix eval -f. "${pkg}.drvPath" --raw)
+              supported=$(jq '.[$drvPath].supported' "$tmp/drv-build-support.json" --arg drvPath "$drvPath")
+              if [[ "$supported" = "false" ]]; then
+                jq '.result[].failed -= [$pkg] | .result[].unsupported += [$pkg]' --arg pkg "$pkg" "$report_json" | sponge "$report_json"
+              fi
+            done
+          fi
+
+          if failed=$(jq -er '.result[].failed[]' "$report_json"); then
+            git fetch origin "$BASE" && git switch -d "$BASE"
+            build=()
+            paths=()
+            for pkg in $failed; do
+              [[ "$(nix eval --impure --expr "import ./. {} ? ${pkg}")" = "true" ]] || continue
+              path=$(nix eval -f. "${pkg}.outPath" --raw) || continue
+              build+=("$pkg")
+              paths+=("$path")
+            done
+
+            if [[ ${#build[@]} -ne 0 ]]; then
+              nix build --keep-going -L -f. ${build[@]} || true
+            fi
+
+            for i in ${!build[@]}; do
+              ! nix store verify --no-contents --no-trust "${paths[i]}" || continue
+              jq '.result[].failed -= [$pkg] | .result[].still_failing += [$pkg]' --arg pkg "${build[i]}" "$report_json" | sponge "$report_json"
+            done
+          fi
+
+          generate-markdown-report "$report_json" "$report_md" "$BASE_REF" | sponge "$report_md"
         working-directory: nixpkgs
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
           PR_JSON: ${{ needs.prepare.outputs.pr }}
+          BASE: ${{ needs.prepare.outputs.base }}
+          BASE_REF: ${{ needs.prepare.outputs.base_ref }}
+          MERGE: ${{ needs.prepare.outputs.merge }}
 
       - name: push results to cache
         if: ${{ inputs.push-to-cache && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '') }}
@@ -314,7 +368,7 @@ jobs:
 
           cat report.md
           echo report=$(base64 -w0 report.md) >> "$GITHUB_OUTPUT"
-          echo success=$(jq -s 'all(.[].result[]; .failed==[])' reports/*.json) >> "$GITHUB_OUTPUT"
+          echo success=$(jq -s 'all(.[].result[]; (.failed+.still_failing)==[])' reports/*.json) >> "$GITHUB_OUTPUT"
           sed '1s|$| for [#'"$PR_NUMBER"'](https://github.com/NixOS/nixpkgs/pull/'"$PR_NUMBER"')|' report.md >> $GITHUB_STEP_SUMMARY
         env:
           HEAD: ${{ needs.prepare.outputs.head }}
