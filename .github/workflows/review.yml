@@ -97,10 +97,12 @@ jobs:
             echo "::error::PR is not mergeable"
             exit 1
           fi
-          echo "pr=$pr" >> "$GITHUB_OUTPUT"
-          echo "head=$(jq -r '.head.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
-          echo "merge=$(jq -r '.merge_commit_sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
-          echo "author_id=$(jq -r '.user.id' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          {
+            echo "pr=$pr"
+            echo "head=$(jq -r '.head.sha' <<< "$pr")"
+            echo "merge=$(jq -r '.merge_commit_sha' <<< "$pr")"
+            echo "author_id=$(jq -r '.user.id' <<< "$pr")"
+          } >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -172,8 +174,9 @@ jobs:
 
       - name: run nixpkgs-review ${{ inputs.extra-args }}
         run: |
+          # shellcheck disable=SC2086
           nixpkgs-review -- \
-            pr ${PR_NUMBER} \
+            pr "${PR_NUMBER}" \
             --no-shell \
             --no-headers \
             --print-result \
@@ -192,7 +195,7 @@ jobs:
         run: |
           set -ex
 
-          (realpath -qe ~/.cache/nixpkgs-review/pr-${PR_NUMBER}/results/* || true) > paths
+          (realpath -qe "$HOME/.cache/nixpkgs-review/pr-${PR_NUMBER}/results"/* || true) > paths
           [[ -s paths ]] || exit 0
 
           if [[ ${{ vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
@@ -217,16 +220,20 @@ jobs:
 
           [[ "$is_public" = true ]] || exit 0
 
-          echo "nix-store -r --add-root nixpkgs-pr-${PR_NUMBER}-${{ matrix.system }} \\" >> fetch_cmd
-          echo "  --option binary-caches 'https://cache.nixos.org/ $substituter_endpoint' \\" >> fetch_cmd
-          echo "  --option trusted-public-keys '" >> fetch_cmd
-          echo "  cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" >> fetch_cmd
-          echo "  $public_key" >> fetch_cmd
-          echo -n "  '" >> fetch_cmd
-          for p in $(cat paths); do
-            echo -e " \\" >> fetch_cmd
-            echo -n "  $p" >> fetch_cmd
-          done
+          {
+            echo "nix-store -r --add-root nixpkgs-pr-${PR_NUMBER}-${{ matrix.system }} \\"
+            echo "  --option binary-caches 'https://cache.nixos.org/ $substituter_endpoint' \\"
+            echo "  --option trusted-public-keys '"
+            echo "  cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+            echo "  $public_key"
+            echo -n "  '"
+          } >> fetch_cmd
+          while IFS= read -r p; do
+            {
+              echo -e " \\" 
+              echo -n "  $p"
+            } >> fetch_cmd
+          done < paths
         env:
           ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
           ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
@@ -246,7 +253,7 @@ jobs:
         run: |
           if [[ -s fetch_cmd ]]; then
             cat fetch_cmd
-            echo fetch_cmd_${{ matrix.system }}=$(base64 -w0 fetch_cmd) >> "$GITHUB_OUTPUT"
+            echo "fetch_cmd_${{ matrix.system }}=$(base64 -w0 fetch_cmd)" >> "$GITHUB_OUTPUT"
           fi
           dir=~/.cache/nixpkgs-review/pr-${PR_NUMBER}
           if [[ "$OS" != "Linux" ]]; then
@@ -254,13 +261,15 @@ jobs:
             sed -i '/^###/s/$/ (sandbox = '"$sandbox"')/' "$dir/report.md"
           fi
           if ! [[ -s "$dir/report.md" ]]; then
-            echo -e "\n---" >> "$dir/report.md"
-            echo "### \`${{ matrix.system }}\`" >> "$dir/report.md"
-            echo ":white_check_mark: *No rebuilds*" >> "$dir/report.md"
+            {
+              echo -e "\n---"
+              echo "### \`${{ matrix.system }}\`"
+              echo ":white_check_mark: *No rebuilds*"
+            } >> "$dir/report.md"
           fi
-          cat $dir/report.md
-          report=$(jq -c '.+{$md}' $dir/report.json --rawfile md $dir/report.md | base64 -w0)
-          echo report_${{ matrix.system }}=$report >> "$GITHUB_OUTPUT"
+          cat "$dir/report.md"
+          report=$(jq -c '.+{$md}' "$dir/report.json" --rawfile md "$dir/report.md" | base64 -w0)
+          echo "report_${{ matrix.system }}=$report" >> "$GITHUB_OUTPUT"
         env:
           OS: ${{ runner.os }}
 
@@ -275,47 +284,55 @@ jobs:
       - name: generate report
         id: report
         run: |
-          echo -e "## \`nixpkgs-review\` result\n" >> report.md
-          echo -e "Generated using [\`nixpkgs-review-gha\`](https://github.com/Defelo/nixpkgs-review-gha)\n" >> report.md
-          echo -e "Command: \`nixpkgs-review pr ${PR_NUMBER}${EXTRA_ARGS:+ $EXTRA_ARGS}\`" >> report.md
-          echo -e "Commit: [\`$HEAD\`](https://github.com/NixOS/nixpkgs/commit/$HEAD) ([subsequent changes](https://github.com/NixOS/nixpkgs/compare/$HEAD..pull/$PR_NUMBER/head))" >> report.md
-          echo -e "Merge: [\`$MERGE\`](https://github.com/NixOS/nixpkgs/commit/$MERGE)\n" >> report.md
-          echo -e "Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\n" >> report.md
+          {
+            echo -e "## \`nixpkgs-review\` result\n"
+            echo -e "Generated using [\`nixpkgs-review-gha\`](https://github.com/Defelo/nixpkgs-review-gha)\n"
+            echo -e "Command: \`nixpkgs-review pr ${PR_NUMBER}${EXTRA_ARGS:+ $EXTRA_ARGS}\`"
+            echo -e "Commit: [\`$HEAD\`](https://github.com/NixOS/nixpkgs/commit/$HEAD) ([subsequent changes](https://github.com/NixOS/nixpkgs/compare/$HEAD..pull/$PR_NUMBER/head))"
+            echo -e "Merge: [\`$MERGE\`](https://github.com/NixOS/nixpkgs/commit/$MERGE)\n"
+            echo -e "Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\n"
+          } >> report.md
 
           mkdir .tmp
           cd .tmp
-          echo ${FETCH_CMD_X86_64_LINUX} | base64 -d > x86_64-linux
-          echo ${FETCH_CMD_AARCH64_LINUX} | base64 -d > aarch64-linux
-          echo ${FETCH_CMD_X86_64_DARWIN} | base64 -d > x86_64-darwin
-          echo ${FETCH_CMD_AARCH64_DARWIN} | base64 -d > aarch64-darwin
+          echo "${FETCH_CMD_X86_64_LINUX}" | base64 -d > x86_64-linux
+          echo "${FETCH_CMD_AARCH64_LINUX}" | base64 -d > aarch64-linux
+          echo "${FETCH_CMD_X86_64_DARWIN}" | base64 -d > x86_64-darwin
+          echo "${FETCH_CMD_AARCH64_DARWIN}" | base64 -d > aarch64-darwin
           for system in x86_64-linux aarch64-linux x86_64-darwin aarch64-darwin; do
-            [[ -s $system ]] || continue
-            echo -e "<li><details><summary><code>$system</code></summary>\n\n\`\`\`shell" >> ../cache.md
-            cat $system >> ../cache.md
-            echo -e "\n\`\`\`\n</details></li>" >> ../cache.md
+            [[ -s "$system" ]] || continue
+            {
+              echo -e "<li><details><summary><code>$system</code></summary>\n\n\`\`\`shell"
+              cat $system
+              echo -e "\n\`\`\`\n</details></li>"
+            } >> ../cache.md
           done
           cd ..
           if [[ -s cache.md ]]; then
-            echo -e "<details><summary>Download packages from cache:</summary><ul>" >> report.md
-            cat cache.md >> report.md
-            echo -e "</ul></details>\n" >> report.md
+            {
+              echo -e "<details><summary>Download packages from cache:</summary><ul>"
+              cat cache.md
+              echo -e "</ul></details>\n"
+            } >> report.md
           fi
 
           mkdir reports
-          echo ${REPORT_X86_64_LINUX} | base64 -d > reports/x86_64-linux.json
-          echo ${REPORT_AARCH64_LINUX} | base64 -d > reports/aarch64-linux.json
-          echo ${REPORT_X86_64_DARWIN} | base64 -d > reports/x86_64-darwin.json
-          echo ${REPORT_AARCH64_DARWIN} | base64 -d > reports/aarch64-darwin.json
+          echo "${REPORT_X86_64_LINUX}" | base64 -d > reports/x86_64-linux.json
+          echo "${REPORT_AARCH64_LINUX}" | base64 -d > reports/aarch64-linux.json
+          echo "${REPORT_X86_64_DARWIN}" | base64 -d > reports/x86_64-darwin.json
+          echo "${REPORT_AARCH64_DARWIN}" | base64 -d > reports/aarch64-darwin.json
           for system in x86_64-linux aarch64-linux x86_64-darwin aarch64-darwin; do
-            if [[ -s reports/$system.json ]]; then
-              jq -r '.md' reports/$system.json >> report.md
+            if [[ -s "reports/$system.json" ]]; then
+              jq -r '.md' "reports/$system.json" >> report.md
             fi
           done
 
           cat report.md
-          echo report=$(base64 -w0 report.md) >> "$GITHUB_OUTPUT"
-          echo success=$(jq -s 'all(.[].result[]; .failed==[])' reports/*.json) >> "$GITHUB_OUTPUT"
-          sed '1s|$| for [#'"$PR_NUMBER"'](https://github.com/NixOS/nixpkgs/pull/'"$PR_NUMBER"')|' report.md >> $GITHUB_STEP_SUMMARY
+          {
+            echo "report=$(base64 -w0 report.md)"
+            echo "success=$(jq -s 'all(.[].result[]; .failed==[])' reports/*.json)"
+          } >> "$GITHUB_OUTPUT"
+          sed '1s|$| for [#'"$PR_NUMBER"'](https://github.com/NixOS/nixpkgs/pull/'"$PR_NUMBER"')|' report.md >> "$GITHUB_STEP_SUMMARY"
         env:
           HEAD: ${{ needs.prepare.outputs.head }}
           MERGE: ${{ needs.prepare.outputs.merge }}
@@ -336,7 +353,7 @@ jobs:
 
     steps:
       - name: fetch report
-        run: echo ${REPORT} | base64 -d > report.md
+        run: echo "${REPORT}" | base64 -d > report.md
         env:
           REPORT: ${{ needs.report.outputs.report }}
 
@@ -344,7 +361,7 @@ jobs:
         if: ${{ inputs.post-result }}
         run: |
           if [[ -n "$GH_TOKEN" ]]; then
-            gh pr -R NixOS/nixpkgs comment ${PR_NUMBER} -F report.md
+            gh pr -R NixOS/nixpkgs comment "${PR_NUMBER}" -F report.md
           fi
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -356,7 +373,7 @@ jobs:
             echo "::error::Cannot mark the PR as ready for review because no GH_TOKEN has been configured."
             exit 1
           fi
-          gh pr -R NixOS/nixpkgs ready ${PR_NUMBER}
+          gh pr -R NixOS/nixpkgs ready "${PR_NUMBER}"
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -369,7 +386,7 @@ jobs:
           fi
           user_id="$(gh api /user --jq .id)"
           if [[ "$user_id" != "$PR_AUTHOR_ID" ]]; then
-            gh pr -R NixOS/nixpkgs review ${PR_NUMBER} --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`."
+            gh pr -R NixOS/nixpkgs review "${PR_NUMBER}" --approve -b "Approved automatically following the successful run of \`nixpkgs-review\`."
           elif [[ "${{ inputs.on-success }}" = "approve" ]]; then
             echo "::error::You cannot approve your own pull request."
             exit 1
@@ -388,14 +405,14 @@ jobs:
 
           is_committer="$(gh api /repos/NixOS/nixpkgs --jq .permissions.push)"
           if [[ "$is_committer" = true ]]; then
-            gh pr -R NixOS/nixpkgs merge ${PR_NUMBER} --merge --match-head-commit "$HEAD"
+            gh pr -R NixOS/nixpkgs merge "${PR_NUMBER}" --merge --match-head-commit "$HEAD"
           else
             current_head="$(gh api "/repos/NixOS/nixpkgs/pulls/$PR_NUMBER" --jq .head.sha)"
             if [[ "$current_head" != "$HEAD" ]]; then
               echo "::error::Refusing to merge because the head branch was modified (expected $HEAD, got $current_head instead)"
               exit 1
             fi
-            gh pr -R NixOS/nixpkgs comment ${PR_NUMBER} -b "@NixOS/nixpkgs-merge-bot merge"
+            gh pr -R NixOS/nixpkgs comment "${PR_NUMBER}" -b "@NixOS/nixpkgs-merge-bot merge"
           fi
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
