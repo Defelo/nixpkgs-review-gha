@@ -238,6 +238,13 @@ jobs:
           touch fetch_cmd
           cat fetch_cmd
           dir=~/.cache/nixpkgs-review/pr-${PR_NUMBER}
+          mkdir -p "$dir"  # Ensure directory exists
+
+          # Create empty report.json if it doesn't exist
+          if ! [[ -f "$dir/report.json" ]]; then
+            echo '{"result": []}' > "$dir/report.json"
+          fi
+
           if [[ "$OS" != "Linux" ]]; then
             sandbox=$(nix config show sandbox)
             sed -i '/^###/s/$/ (sandbox = '"$sandbox"')/' "$dir/report.md"
@@ -248,9 +255,10 @@ jobs:
             echo ":white_check_mark: *No rebuilds*" >> "$dir/report.md"
           fi
           cat $dir/report.md
-          jq -c '.+{$md, $fetch_cmd}' $dir/report.json \
-            --rawfile md $dir/report.md \
+          jq -c --rawfile md $dir/report.md \
             --rawfile fetch_cmd fetch_cmd \
+            '. + {md: $md, fetch_cmd: $fetch_cmd}' \
+            $dir/report.json \
             > report_${{ matrix.system }}.json
         env:
           OS: ${{ runner.os }}
