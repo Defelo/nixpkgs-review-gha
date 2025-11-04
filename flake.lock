@@ -44,11 +44,11 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1761232464,
-        "narHash": "sha256-O0Wb3ts+aRiN3dWgNahNKbrbXnxzSBwGOd7ovSBEQYM=",
+        "lastModified": 1762287231,
+        "narHash": "sha256-KekjfFIaJRTsuvK3rwfKXHXKo8r/9ewyR6Mhnm037HE=",
         "owner": "Mic92",
         "repo": "nixpkgs-review",
-        "rev": "0c04828ccd01ca29a33582921f7f5b0299969cbb",
+        "rev": "04e5b693506cca194a6f66dbe5ba5be60d9da161",
         "type": "github"
       },
       "original": {
