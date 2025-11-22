@@ -126,7 +126,7 @@ jobs:
       || (matrix.system == 'aarch64-darwin' && 'macos-latest') }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: |
             .github/actions
@@ -156,7 +156,7 @@ jobs:
           nix profile add "${pkgs[@]/#/.#}"
 
       - name: clone nixpkgs
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: NixOS/nixpkgs
           path: nixpkgs
@@ -256,7 +256,7 @@ jobs:
         env:
           OS: ${{ runner.os }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: report_${{ matrix.system }}.json
           path: report_${{ matrix.system }}.json
@@ -269,7 +269,7 @@ jobs:
       success: ${{ steps.report.outputs.success }}
 
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           merge-multiple: true
 
@@ -316,7 +316,7 @@ jobs:
           MERGE: ${{ needs.prepare.outputs.merge }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: report.md
           path: report.md
@@ -328,7 +328,7 @@ jobs:
     if: ${{ inputs.post-result || inputs.on-success != 'nothing' }}
 
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: report.md
 
