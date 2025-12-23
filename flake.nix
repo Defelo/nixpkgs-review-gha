@@ -26,6 +26,14 @@
     in
 
     {
+      packages = eachSystem (pkgs: {
+        generate-markdown-report = pkgs.writers.writePython3Bin "generate-markdown-report" {
+          flakeIgnore = [
+            "E501" # line too long
+          ];
+        } (builtins.readFile ./generate_markdown_report.py);
+      });
+
       overlays.nixpkgs-review = final: prev: {
         inherit (nixpkgs-review.packages.${final.stdenv.hostPlatform.system}) nixpkgs-review;
       };
@@ -44,6 +52,7 @@
 
       checks = eachSystem (pkgs: {
         inherit (pkgs) nixpkgs-review;
+        packages = pkgs.linkFarm "packages" self.packages.${pkgs.stdenv.hostPlatform.system};
         fmt = pkgs.runCommand "fmt-check" { } ''
           cp -r --no-preserve=mode ${self} repo
           ${lib.getExe self.formatter.${pkgs.stdenv.hostPlatform.system}} -C repo --ci
