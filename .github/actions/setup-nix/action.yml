@@ -61,6 +61,18 @@ runs:
       shell: bash
       run: sudo mkdir -p /nix/build
 
+    - name: create nixpkgs config
+      shell: bash
+      # Nixpkgs config allows to build unfree packages
+      run: |
+        mkdir -p ~/.config/nixpkgs
+        cat > ~/.config/nixpkgs/config.nix <<EOF
+        {
+          allowUnfree = true;
+          nvidia.acceptLicense = true;
+        }
+        EOF
+
     - name: post setup-nix
       if: runner.os == 'macOS'
       uses: srz-zumix/post-run-action@v2
