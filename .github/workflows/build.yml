@@ -40,6 +40,11 @@ on:
           - yes_sandbox_false
           - yes_sandbox_relaxed
           - yes_sandbox_true
+      impure:
+        description: "Allow unfree packages (--impure)"
+        required: true
+        type: boolean
+        default: false
       upterm:
         description: "Start upterm session after nix build"
         required: true
@@ -85,7 +90,12 @@ jobs:
             || 'true' }}
 
       - name: nix build
-        run: nix build --keep-going -L ${{ inputs.packages }}
+        run: >-
+          nix build
+          ${{ inputs.impure && '--impure' || '' }}
+          --keep-going
+          -L
+          ${{ inputs.packages }}
         if: ${{ inputs.packages != '' }}
 
       - name: set GITHUB_TOKEN
