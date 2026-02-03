@@ -5,6 +5,7 @@
 // ==/UserScript==
 
 const repo = "Defelo/nixpkgs-review-gha";
+const tracker = "https://nixpk.gs/pr-tracker.html";
 
 const reviewDefaults = ({ title, commits, labels, author, authoredByMe, hasLinuxRebuilds, hasDarwinRebuilds }) => {
   const darwinSandbox = "relaxed";
@@ -26,7 +27,7 @@ const reviewDefaults = ({ title, commits, labels, author, authoredByMe, hasLinux
 };
 
 const prTrackers = [
-  { name: "nixpk.gs", toUrl: pr => `https://nixpk.gs/pr-tracker.html?pr=${pr}` },
+  { name: "nixpk.gs", toUrl: pr => `${tracker}?pr=${pr}` },
   { name: "ocfox.me", toUrl: pr => `https://nixpkgs-tracker.ocfox.me/?pr=${pr}` },
 ];
 
