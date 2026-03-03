@@ -2,9 +2,23 @@
 // @name        nixpkgs-review-gha
 // @match       https://github.com/*
 // @run-at      document-idle
+// @grant       GM_getValue
+// @grant       GM_setValue
+// @grant       GM_registerMenuCommand
 // ==/UserScript==
 
-const repo = "Defelo/nixpkgs-review-gha";
+const defaultRepo = "Defelo/nixpkgs-review-gha";
+const repoStorageKey = "nixpkgs-review-gha:repo";
+
+const repo = GM_getValue(repoStorageKey, defaultRepo);
+
+GM_registerMenuCommand(`Set workflow repo (current: ${repo})`, () => {
+  const nextRepo = prompt("Input workflow repository (owner/repo):", repo);
+  if (nextRepo === null) return;
+
+  GM_setValue(repoStorageKey, nextRepo);
+  alert(`Saved repo: ${nextRepo}. Refresh the page to apply.`);
+});
 
 const reviewDefaults = ({ title, commits, labels, author, authoredByMe, hasLinuxRebuilds, hasDarwinRebuilds }) => {
   const darwinSandbox = "relaxed";

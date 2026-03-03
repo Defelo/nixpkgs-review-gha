@@ -53,10 +53,15 @@ extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq
 ```
 
 ### Shortcuts on nixpkgs PR pages (optional)
-Add [`shortcut.user.js`](shortcut.user.js) as a user script in your browser for `https://github.com/` for example using the [User JavaScript and CSS chrome extension](https://chromewebstore.google.com/detail/user-javascript-and-css/nbhcbdghjpllgmfilhnhkllmkecfmpld) or [Violentmonkey](https://violentmonkey.github.io/). Don't forget to update the `repo` constant at the top of the file to point to your fork.
+Add [`shortcut.user.js`](shortcut.user.js) as a user script in your browser for `https://github.com/` for example using the [User JavaScript and CSS chrome extension](https://chromewebstore.google.com/detail/user-javascript-and-css/nbhcbdghjpllgmfilhnhkllmkecfmpld) or [Violentmonkey](https://violentmonkey.github.io/).
+
+You can configure which workflow repository is used in two ways:
+
+1. Commit the repo in your fork (recommended): edit `defaultRepo` in [`shortcut.user.js`](shortcut.user.js), commit the change in your fork, and install the script from your fork. This is usually the easiest setup for multiple machines because your userscript updates are managed in one place.
+2. Configure locally in the userscript manager: open the userscript menu, run `Set workflow repo (current: ...)`, and enter your fork in `owner/repo` format.
 
 > [!TIP]
-> Opening the [raw file](shortcut.user.js?raw=true) with Violetmonkey installed will prompt for installation.
+> Opening the [raw file](shortcut.user.js?raw=true) with Violentmonkey installed will prompt for installation.
 
 ## Usage
 1. Open the [review workflow in the "Actions" tab](../../actions/workflows/review.yml)
