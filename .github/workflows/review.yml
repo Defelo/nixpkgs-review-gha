@@ -27,7 +27,7 @@ on:
         description: "Run on x86_64-darwin"
         required: true
         type: choice
-        default: yes_sandbox_relaxed
+        default: no # deprecated in nixpkgs
         options:
           - "no"
           - yes_sandbox_false

@@ -17,7 +17,7 @@ const reviewDefaults = ({ title, commits, labels, author, authoredByMe, hasLinux
     // "branch": "main",
     "x86_64-linux": !hasRebuilds || hasLinuxRebuilds,
     "aarch64-linux": !hasRebuilds || hasLinuxRebuilds,
-    "x86_64-darwin": !hasRebuilds || hasDarwinRebuilds ? `yes_sandbox_${darwinSandbox}` : "no",
+    // "x86_64-darwin": "no",
     "aarch64-darwin": !hasRebuilds || hasDarwinRebuilds ? `yes_sandbox_${darwinSandbox}` : "no",
     // "extra-args": "",
     // "push-to-cache": true,
