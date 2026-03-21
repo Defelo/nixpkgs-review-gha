@@ -138,6 +138,7 @@ jobs:
         with:
           sparse-checkout: |
             .github/actions
+            drv-build-support.nix
             flake.lock
             flake.nix
             generate_markdown_report.py
@@ -185,6 +186,27 @@ jobs:
 
           report_json=~/.cache/nixpkgs-review/pr-${PR_NUMBER}/report.json
           report_md=~/.cache/nixpkgs-review/pr-${PR_NUMBER}/report.md
+
+          if failed=$(jq -er '.result[].failed[]' "$report_json"); then
+            git fetch origin "$MERGE" && git switch -d "$MERGE"
+            tmp=$(mktemp -d)
+            nix config show --json > "$tmp/nix-config.json"
+            nix derivation show --recursive -f. $failed > "$tmp/drv-graph.json"
+            nix-instantiate --eval --strict --json ../drv-build-support.nix \
+              --argstr configPath "$tmp/nix-config.json" \
+              --argstr drvGraphPath "$tmp/drv-graph.json" \
+              > "$tmp/drv-build-support.json"
+
+            for pkg in $failed; do
+              drvPath=$(nix eval -f. "${pkg}.drvPath" --raw)
+              drv=$(basename "$drvPath")
+              supported=$(jq '.[$drv].supported' "$tmp/drv-build-support.json" --arg drv "$drv")
+              if [[ "$supported" = "false" ]]; then
+                jq '.result[].failed -= [$pkg] | .result[].unsupported += [$pkg]' --arg pkg "$pkg" "$report_json" | sponge "$report_json"
+              fi
+            done
+          fi
+
           if failed=$(jq -er '.result[].failed[]' "$report_json"); then
             git fetch origin "$BASE" && git switch -d "$BASE"
             build=()
@@ -214,6 +236,7 @@ jobs:
           PR_JSON: ${{ needs.prepare.outputs.pr }}
           BASE: ${{ needs.prepare.outputs.base }}
           BASE_REF: ${{ needs.prepare.outputs.base_ref }}
+          MERGE: ${{ needs.prepare.outputs.merge }}
 
       - name: push results to cache
         if: ${{ inputs.push-to-cache && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '') }}
