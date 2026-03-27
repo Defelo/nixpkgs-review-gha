@@ -10,6 +10,15 @@ inputs:
   extra-nix-config:
     type: string
     default: ""
+  builders:
+    type: string
+    default: ""
+  ssh-key:
+    type: string
+    default: ""
+  ssh-cert:
+    type: string
+    default: ""
 
 runs:
   using: composite
@@ -46,6 +55,21 @@ runs:
           /Users/runner/Library/Developer/CoreSimulator \
           /Users/runner/hostedtoolcache &
 
+    - name: prepare remote builder config
+      if: ${{ inputs.builders != '' && inputs.ssh-key != '' }}
+      env:
+        BUILDERS: ${{ inputs.builders }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+        SSH_CERT: ${{ inputs.ssh-cert }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo mkdir -p /etc/nix/
+        echo -e "$BUILDERS" | sudo tee /etc/nix/machines
+        echo -e "$SSH_KEY" | sudo tee /etc/nix/ssh_id > /dev/null
+        echo -e "$SSH_CERT" | sudo tee /etc/nix/ssh_id-cert.pub > /dev/null
+        sudo chmod 400 /etc/nix/ssh_id{,-cert.pub}
+
     - name: install nix
       uses: cachix/install-nix-action@v31
       with:
@@ -53,6 +77,8 @@ runs:
         extra_nix_config: |
           accept-flake-config = true
           build-dir = /nix/build
+          builders = @/etc/nix/machines
+          builders-use-substitutes = true
           sandbox = ${{ inputs.sandbox }}
           system = ${{ inputs.system }}
           ${{ inputs.extra-nix-config }}

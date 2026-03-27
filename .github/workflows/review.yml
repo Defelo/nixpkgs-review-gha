@@ -154,6 +154,9 @@ jobs:
             || (matrix.system == 'x86_64-darwin' && inputs.x86_64-darwin == 'yes_sandbox_relaxed'
             || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_relaxed') && 'relaxed'
             || 'true' }}
+          builders: ${{ (vars.USE_BUILDERS == 'yes' || vars.USE_BUILDERS == 'always') && vars.BUILDERS || '' }}
+          ssh-key: ${{ (vars.USE_BUILDERS == 'yes' || vars.USE_BUILDERS == 'always') && secrets.SSH_KEY || '' }}
+          ssh-cert: ${{ (vars.USE_BUILDERS == 'yes' || vars.USE_BUILDERS == 'always') && secrets.SSH_CERT || '' }}
 
       - name: install packages
         run: |
@@ -163,7 +166,7 @@ jobs:
           elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
             pkgs+=(cachix)
           fi
-          nix profile add "${pkgs[@]/#/.#}"
+          nix profile add "${pkgs[@]/#/.#}" --builders ''
 
       - name: clone nixpkgs
         uses: actions/checkout@v6
@@ -180,7 +183,7 @@ jobs:
             --no-exit-status \
             --no-headers \
             --print-result \
-            --build-args="-L" \
+            --build-args="-L $JOBS_ARG" \
             --pr-json="$PR_JSON" \
             $EXTRA_ARGS
 
@@ -219,7 +222,7 @@ jobs:
             done
 
             if [[ ${#build[@]} -ne 0 ]]; then
-              nix build --keep-going -L -f. ${build[@]} || true
+              nix build --keep-going -L "$JOBS_ARG" -f. ${build[@]} || true
             fi
 
             for i in ${!build[@]}; do
@@ -237,6 +240,7 @@ jobs:
           BASE: ${{ needs.prepare.outputs.base }}
           BASE_REF: ${{ needs.prepare.outputs.base_ref }}
           MERGE: ${{ needs.prepare.outputs.merge }}
+          JOBS_ARG: ${{ vars.USE_BUILDERS == 'always' && '-j0' || '' }}
 
       - name: push results to cache
         if: ${{ inputs.push-to-cache && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '') }}
