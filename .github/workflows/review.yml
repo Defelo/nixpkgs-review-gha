@@ -148,6 +148,9 @@ jobs:
             || (matrix.system == 'x86_64-darwin' && inputs.x86_64-darwin == 'yes_sandbox_relaxed'
             || matrix.system == 'aarch64-darwin' && inputs.aarch64-darwin == 'yes_sandbox_relaxed') && 'relaxed'
             || 'true' }}
+          builders: ${{ (vars.USE_BUILDERS == 'yes' || vars.USE_BUILDERS == 'always') && vars.BUILDERS || '' }}
+          ssh-key: ${{ (vars.USE_BUILDERS == 'yes' || vars.USE_BUILDERS == 'always') && secrets.SSH_KEY || '' }}
+          ssh-cert: ${{ (vars.USE_BUILDERS == 'yes' || vars.USE_BUILDERS == 'always') && secrets.SSH_CERT || '' }}
 
       - name: install packages
         run: |
@@ -157,7 +160,7 @@ jobs:
           elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
             pkgs+=(cachix)
           fi
-          nix profile add "${pkgs[@]/#/.#}"
+          nix profile add "${pkgs[@]/#/.#}" --builders ''
 
       - name: clone nixpkgs
         uses: actions/checkout@v6
@@ -174,7 +177,7 @@ jobs:
             --no-exit-status \
             --no-headers \
             --print-result \
-            --build-args="-L" \
+            --build-args="-L $JOBS_ARG" \
             --pr-json="$PR_JSON" \
             $EXTRA_ARGS
         working-directory: nixpkgs
@@ -182,6 +185,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
           PR_JSON: ${{ needs.prepare.outputs.pr }}
+          JOBS_ARG: ${{ vars.USE_BUILDERS == 'always' && '-j0' || '' }}
 
       - name: push results to cache
         if: ${{ inputs.push-to-cache && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '') }}
