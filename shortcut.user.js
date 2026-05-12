@@ -30,7 +30,7 @@ const reviewDefaults = ({ title, commits, labels, author, authoredByMe, hasLinux
 
 const prTrackers = [
   { name: "nixpk.gs", toUrl: pr => `https://nixpk.gs/pr-tracker.html?pr=${pr}` },
-  { name: "ocfox.me", toUrl: pr => `https://nixpkgs-tracker.ocfox.me/?pr=${pr}` },
+  { name: "ocfox.me", toUrl: pr => `https://ocfox.me/nixpkgs-tracker?pr=${pr}` },
 ];
 
 const sleep = duration => new Promise(resolve => setTimeout(resolve, duration));
