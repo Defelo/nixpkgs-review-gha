@@ -76,7 +76,7 @@ jobs:
       || (matrix.system == 'riscv64-linux' && 'ubuntu-24.04-riscv') }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           sparse-checkout: .github/actions
 
@@ -107,6 +107,6 @@ jobs:
 
       - name: start upterm session
         if: ${{ inputs.upterm }}
-        uses: owenthereal/action-upterm@v1
+        uses: owenthereal/action-upterm@f26ebc11e22a09b8365f39d2cdafd06f63b42053 # v1
         with:
           limit-access-to-actor: true

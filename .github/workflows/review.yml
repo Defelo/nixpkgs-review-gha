@@ -138,7 +138,7 @@ jobs:
       || (matrix.system == 'riscv64-linux' && 'ubuntu-24.04-riscv') }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           sparse-checkout: |
             .github/actions
@@ -171,7 +171,7 @@ jobs:
           nix profile add "${pkgs[@]/#/.#}" --builders ''
 
       - name: clone nixpkgs
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           repository: NixOS/nixpkgs
           path: nixpkgs
@@ -245,7 +245,7 @@ jobs:
 
       - name: start upterm session
         if: ${{ inputs.upterm }}
-        uses: owenthereal/action-upterm@v1
+        uses: owenthereal/action-upterm@f26ebc11e22a09b8365f39d2cdafd06f63b42053 # v1
         with:
           limit-access-to-actor: true
 
@@ -272,7 +272,7 @@ jobs:
         env:
           OS: ${{ runner.os }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: report_${{ matrix.system }}.json
           path: report_${{ matrix.system }}.json
@@ -286,7 +286,7 @@ jobs:
       success: ${{ steps.report.outputs.success }}
 
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           merge-multiple: true
 
@@ -333,7 +333,7 @@ jobs:
           MERGE: ${{ needs.prepare.outputs.merge }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: report.md
           path: report.md
@@ -346,7 +346,7 @@ jobs:
     if: ${{ inputs.post-result || inputs.on-success != 'nothing' }}
 
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: report.md
 
