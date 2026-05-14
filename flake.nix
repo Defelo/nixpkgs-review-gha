@@ -27,6 +27,10 @@
     in
 
     {
+      packages = eachSystem (pkgs: {
+        generate-token = pkgs.writers.writeNuBin "generate-token" (builtins.readFile ./generate-token.nu);
+      });
+
       legacyPackages = eachSystem lib.id;
 
       formatter = eachSystem (
