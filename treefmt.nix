@@ -7,6 +7,7 @@
   excludes = [
     "*.lock"
     "*.md"
+    "*.nu"
     ".gitignore"
     "LICENSE"
   ];

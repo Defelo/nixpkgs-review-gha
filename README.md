@@ -19,10 +19,11 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 3. If you want to set up [automatic self-updates](#automatic-self-updates-optional), please enable the `self-update` workflow ([Actions / `self-update`](../../actions/workflows/self-update.yml) > `...` button (top right corner) > `Enable workflow`).
 
 ### Post Results / Auto Approve/Merge (optional)
-If you want nixpkgs-review-gha to automatically post the results on the reviewed pull requests or automatically mark them as ready for review or approve/merge them, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens):
+If you want nixpkgs-review-gha to automatically post the results on the reviewed pull requests or automatically mark them as ready for review or approve/merge them, you need an API token with write access to pull requests in nixpkgs.
+Since [personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) have been [disabled in nixpkgs](https://github.com/NixOS/org/issues/247#issuecomment-4447783439), you can use an OAuth token issued via the device flow instead:
 
-1. Go to <https://github.com/settings/tokens> and generate a new **classic** token with the `public_repo` scope.
-2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_TOKEN` and set its value to the personal access token you generated before.
+1. Run the [`generate-token.nu`](generate-token.nu) script (e.g. using `nix run github:Defelo/nixpkgs-review-gha#generate-token`). This will use the [GitHub CLI](https://github.com/cli/cli) OAuth app to generate a token with only the `public_repo` scope. Unfortunately, it is not possible to set an expiration date for this token, so if you want to revoke the token later, you will need to [revoke access for the entire "GitHub CLI" OAuth App](https://github.com/settings/connections/applications/178c6fc778ccc68e1d6a) (note that this will invalidate *all* tokens issued via this app).
+2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_TOKEN` and set its value to the API token you generated before.
 
 ### Automatic Self-Updates (optional)
 If you want your fork to update itself on a regular basis, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens). Note that this token is different from the one used above!
