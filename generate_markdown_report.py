@@ -38,5 +38,6 @@ for system, report in report_json["result"].items():
     msg += html_pkgs_section(":x:", report.get("still_failing", []), f"still failing to build (also failed on {base})")
     msg += html_pkgs_section(":white_check_mark:", report["tests"], "built", what="test")
     msg += html_pkgs_section(":white_check_mark:", report["built"], "built")
+    msg += html_pkgs_section(":grey_question:", report.get("unsupported", []), "not supported by the current system")
 
 print(msg, end="")
