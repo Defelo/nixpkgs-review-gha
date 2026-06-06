@@ -1,5 +1,5 @@
 name: review
-run-name: "review #${{ inputs.pr }}${{ inputs.extra-args && format(' ({0})', inputs.extra-args) || '' }}"
+run-name: "review #${{ inputs.pr }}${{ inputs.extra-args && format(' ({0})', inputs.extra-args) || '' }}${{ inputs.extra-build-args && format(' [{0}]', inputs.extra-build-args) || '' }}"
 
 permissions: {}
 
@@ -50,6 +50,10 @@ on:
         default: false
       extra-args:
         description: "nixpkgs-review extra args"
+        required: false
+        type: string
+      extra-build-args:
+        description: "nixpkgs-review extra build args"
         required: false
         type: string
       push-to-cache:
@@ -177,7 +181,7 @@ jobs:
           path: nixpkgs
           persist-credentials: false
 
-      - name: run nixpkgs-review ${{ inputs.extra-args }}
+      - name: run nixpkgs-review ${{ inputs.extra-args }} ${{ inputs.extra-build-args }}
         run: |
           nixpkgs-review -- \
             pr ${PR_NUMBER} \
@@ -185,13 +189,14 @@ jobs:
             --no-exit-status \
             --no-headers \
             --print-result \
-            --build-args="-L $JOBS_ARG" \
+            --build-args="-L $JOBS_ARG $EXTRA_BUILD_ARGS" \
             --pr-json="$PR_JSON" \
             $EXTRA_ARGS
         working-directory: nixpkgs
         env:
           GITHUB_TOKEN: ${{ github.token }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
+          EXTRA_BUILD_ARGS: ${{ inputs.extra-build-args }}
           PR_JSON: ${{ needs.prepare.outputs.pr }}
           JOBS_ARG: ${{ vars.USE_BUILDERS == 'always' && '-j0' || '' }}
 
@@ -332,6 +337,7 @@ jobs:
           HEAD: ${{ needs.prepare.outputs.head }}
           MERGE: ${{ needs.prepare.outputs.merge }}
           EXTRA_ARGS: ${{ inputs.extra-args }}
+          EXTRA_BUILD_ARGS: ${{ inputs.extra-build-args }}
 
       - uses: actions/upload-artifact@v7
         with:
