@@ -9,7 +9,7 @@ const USER_AGENT: &str = concat!(
     " (https://github.com/Defelo/nixpkgs-review-gha)"
 );
 
-pub async fn post_nixpkgs_comment(token: &str, pr: &str, body: &str) -> anyhow::Result<String> {
+pub async fn post_nixpkgs_comment(token: &str, pr: u64, body: &str) -> anyhow::Result<String> {
     #[derive(Serialize)]
     struct Request<'a> {
         body: &'a str,
@@ -36,7 +36,7 @@ pub async fn post_nixpkgs_comment(token: &str, pr: &str, body: &str) -> anyhow::
 
 pub async fn approve_nixpkgs_pr(
     token: &str,
-    pr: &str,
+    pr: u64,
     commit_id: &str,
     body: &str,
 ) -> anyhow::Result<String> {

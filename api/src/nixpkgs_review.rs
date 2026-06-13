@@ -7,7 +7,8 @@ use crate::github::oidc::Claims;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
-    pub pr: String,
+    #[serde(deserialize_with = "crate::serde_ext::from_string")]
+    pub pr: u64,
     pub extra_args: String,
     pub head: String,
     pub merge: String,
@@ -174,7 +175,7 @@ mod tests {
 
     fn report() -> Report {
         Report {
-            pr: "1337".into(),
+            pr: 1337,
             extra_args: "-a extra-package".into(),
             head: "842d0b3850da7fb970fd81c60b7527ff8e3a3c63".into(),
             merge: "d8b086693fa2d763b675ecf2373f7a3b8ca9755d".into(),

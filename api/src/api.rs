@@ -108,7 +108,7 @@ async fn submit_report(
     if post_result {
         let rendered = state.report_markdown_renderer.render(&report, &claims);
 
-        let comment_url = post_nixpkgs_comment(&state.github_token, &report.pr, &rendered)
+        let comment_url = post_nixpkgs_comment(&state.github_token, report.pr, &rendered)
             .await
             .with_context(|| format!("failed to post comment on pr #{}", report.pr))
             .map_err(internal_server_error)?;
@@ -133,7 +133,7 @@ async fn submit_report(
             );
 
             let approval_url =
-                approve_nixpkgs_pr(&state.github_token, &report.pr, &report.head, &body)
+                approve_nixpkgs_pr(&state.github_token, report.pr, &report.head, &body)
                     .await
                     .with_context(|| {
                         format!(

@@ -108,7 +108,7 @@ if ($env.GH_TOKEN | is-empty) {
     | flatten nixConfig result
     | rename -c { fetchCmd: fetch_cmd }
     | {
-      pr: $env.PR_NUMBER,
+      pr: $inputs.pr,
       extra_args: $inputs.extra-args-raw,
       head: $head,
       merge: $merge,
