@@ -9,6 +9,24 @@ const USER_AGENT: &str = concat!(
     " (https://github.com/Defelo/nixpkgs-review-gha)"
 );
 
+#[derive(Debug, Deserialize)]
+pub struct PullRequest {
+    pub user: User,
+}
+
+pub async fn get_nixpkgs_pr(token: &str, pr: u64) -> anyhow::Result<PullRequest> {
+    Ok(make_http_client()
+        .get(format!(
+            "https://api.github.com/repos/NixOS/nixpkgs/pulls/{pr}"
+        ))
+        .bearer_auth(token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?)
+}
+
 pub async fn post_nixpkgs_comment(token: &str, pr: u64, body: &str) -> anyhow::Result<String> {
     #[derive(Serialize)]
     struct Request<'a> {

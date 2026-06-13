@@ -236,10 +236,10 @@ mod tests {
     fn reporter() -> Claims {
         Claims {
             actor: "some-user".into(),
-            actor_id: "123456".into(),
+            actor_id: 123456,
             repository: "some-user/nixpkgs-review-gha".into(),
-            run_attempt: "1".into(),
-            run_id: "42".into(),
+            run_attempt: 1,
+            run_id: 42,
             workflow: "review".into(),
             workflow_sha: "f0bf93978802df847890d6f70aa57464cfab48f3".into(),
         }

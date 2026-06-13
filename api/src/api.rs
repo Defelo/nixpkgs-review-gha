@@ -17,7 +17,7 @@ use tokio::net::UnixListener;
 use tracing::debug;
 
 use crate::{
-    github::{approve_nixpkgs_pr, oidc::IdTokenVerifier, post_nixpkgs_comment},
+    github::{approve_nixpkgs_pr, get_nixpkgs_pr, oidc::IdTokenVerifier, post_nixpkgs_comment},
     nixpkgs_review::{Report, ReportMarkdownRenderer},
 };
 
@@ -101,7 +101,18 @@ async fn submit_report(
         .map_err(|err| (StatusCode::UNAUTHORIZED, format!("invalid token: {err}")).into_response())
         .inspect_err(|_| debug!(token = auth.token(), "unauthorized report submit request"))?;
 
-    debug!(?claims, post_result, ?on_success, "report submitted");
+    debug!(
+        ?claims,
+        post_result,
+        ?on_success,
+        pr = report.pr,
+        "report submitted"
+    );
+
+    let pr = get_nixpkgs_pr(&state.github_token, report.pr)
+        .await
+        .with_context(|| format!("failed to fetch nixpkgs pr #{}", report.pr))
+        .map_err(internal_server_error)?;
 
     let mut response = SubmitReportResponse::default();
 
@@ -123,6 +134,9 @@ async fn submit_report(
         OnSuccessAction::MarkAsReady => response
             .errors
             .push("cannot mark PRs as ready for review yet"),
+        OnSuccessAction::Approve if pr.user.id == claims.actor_id => {
+            response.errors.push("You cannot approve your own PR");
+        }
         OnSuccessAction::Approve => {
             let body = format!(
                 "Approved automatically on behalf of @{} ({}) following the successful run of \
