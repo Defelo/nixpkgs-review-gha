@@ -2,7 +2,7 @@
 source: src/nixpkgs_review.rs
 expression: "ReportMarkdownRenderer::new().render(&report, &reporter())"
 ---
-## `nixpkgs-review` result
+## :x: `nixpkgs-review` result
 
 Generated using [`nixpkgs-review-gha`](https://github.com/Defelo/nixpkgs-review-gha) ([`f0bf939`](https://github.com/Defelo/nixpkgs-review-gha/commit/f0bf93978802df847890d6f70aa57464cfab48f3))
 

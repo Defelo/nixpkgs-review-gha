@@ -1,4 +1,4 @@
-## `nixpkgs-review` result
+## {% if success %}:white_check_mark:{% else %}:x:{% endif %} `nixpkgs-review` result
 
 Generated using [`nixpkgs-review-gha`](https://github.com/Defelo/nixpkgs-review-gha) ([`{{ workflow_sha | truncate(length=7, end="") }}`](https://github.com/Defelo/nixpkgs-review-gha/commit/{{ workflow_sha }}))
 
@@ -7,7 +7,7 @@ Commit: [`{{ head }}`](https://github.com/NixOS/nixpkgs/commit/{{ head }}) ([sub
 Merge: [`{{ merge }}`](https://github.com/NixOS/nixpkgs/commit/{{ merge }})
 
 Triggered by @{{ actor }} ({{ actor_id }})
-Logs: https://github.com/{{ repository }}/actions/runs/{{ run_id }}/attempts/{{ run_attempt }}
+Logs: {{ logs_url }}
 
 {% macro fetch_cmds() -%}
 {%- for x in systems -%}

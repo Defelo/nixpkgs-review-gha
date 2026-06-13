@@ -3,9 +3,6 @@ run-name: "review #${{ inputs.pr }}${{ inputs.extra-args && format(' ({0})', inp
 
 permissions: {}
 
-env:
-  PR_NUMBER: ${{ inputs.pr }}
-
 on:
   workflow_dispatch:
     inputs:

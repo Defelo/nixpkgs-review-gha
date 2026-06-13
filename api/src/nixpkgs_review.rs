@@ -7,7 +7,8 @@ use crate::github::oidc::Claims;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
-    pub pr: String,
+    #[serde(deserialize_with = "crate::serde_ext::from_string")]
+    pub pr: u64,
     pub extra_args: String,
     pub head: String,
     pub merge: String,
@@ -64,11 +65,25 @@ impl ReportMarkdownRenderer {
             report: &'a Report,
             #[serde(flatten)]
             reporter: &'a Claims,
+            success: bool,
+            logs_url: &'a str,
         }
 
-        let ctx = tera::Context::from_serialize(Context { report, reporter }).unwrap();
+        let ctx = tera::Context::from_serialize(Context {
+            report,
+            reporter,
+            success: report.is_success(),
+            logs_url: &reporter.logs_url(),
+        })
+        .unwrap();
 
         self.0.render("report", &ctx).unwrap()
+    }
+}
+
+impl Report {
+    pub fn is_success(&self) -> bool {
+        self.systems.iter().all(|x| x.is_success())
     }
 }
 
@@ -97,6 +112,10 @@ impl SystemReport {
             || !tests.is_empty()
             || !built.is_empty()
             || !unsupported.is_empty()
+    }
+
+    fn is_success(&self) -> bool {
+        self.failed.is_empty() && self.still_failing.is_empty()
     }
 }
 
@@ -136,9 +155,27 @@ mod tests {
         insta::assert_snapshot!(ReportMarkdownRenderer::new().render(&report, &reporter()));
     }
 
+    #[test]
+    fn render_success() {
+        let report = Report {
+            systems: report()
+                .systems
+                .into_iter()
+                .map(|x| SystemReport {
+                    failed: Vec::new(),
+                    still_failing: Vec::new(),
+                    ..x
+                })
+                .collect(),
+            ..report()
+        };
+
+        insta::assert_snapshot!(ReportMarkdownRenderer::new().render(&report, &reporter()));
+    }
+
     fn report() -> Report {
         Report {
-            pr: "1337".into(),
+            pr: 1337,
             extra_args: "-a extra-package".into(),
             head: "842d0b3850da7fb970fd81c60b7527ff8e3a3c63".into(),
             merge: "d8b086693fa2d763b675ecf2373f7a3b8ca9755d".into(),
@@ -199,10 +236,10 @@ mod tests {
     fn reporter() -> Claims {
         Claims {
             actor: "some-user".into(),
-            actor_id: "123456".into(),
+            actor_id: 123456,
             repository: "some-user/nixpkgs-review-gha".into(),
-            run_attempt: "1".into(),
-            run_id: "42".into(),
+            run_attempt: 1,
+            run_id: 42,
             workflow: "review".into(),
             workflow_sha: "f0bf93978802df847890d6f70aa57464cfab48f3".into(),
         }

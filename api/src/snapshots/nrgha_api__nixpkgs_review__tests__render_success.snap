@@ -1,8 +1,8 @@
 ---
 source: src/nixpkgs_review.rs
-expression: "ReportMarkdownRenderer::new().render(&report(), &reporter())"
+expression: "ReportMarkdownRenderer::new().render(&report, &reporter())"
 ---
-## :x: `nixpkgs-review` result
+## :white_check_mark: `nixpkgs-review` result
 
 Generated using [`nixpkgs-review-gha`](https://github.com/Defelo/nixpkgs-review-gha) ([`f0bf939`](https://github.com/Defelo/nixpkgs-review-gha/commit/f0bf93978802df847890d6f70aa57464cfab48f3))
 
@@ -40,10 +40,6 @@ nix-store -r \
 <li>non_existent_pkg</li>
 </ul></details><details><summary>:fast_forward: 1 package blacklisted:</summary><ul>
 <li>blacklisted_pkg</li>
-</ul></details><details><summary>:x: 1 package failed to build:</summary><ul>
-<li>failed_pkg</li>
-</ul></details><details><summary>:x: 1 package still failing to build (also failed on master):</summary><ul>
-<li>still_failing_pkg</li>
 </ul></details><details><summary>:white_check_mark: 1 test built:</summary><ul>
 <li>tests_pkg</li>
 </ul></details><details><summary>:white_check_mark: 1 package built:</summary><ul>

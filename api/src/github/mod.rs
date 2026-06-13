@@ -9,7 +9,25 @@ const USER_AGENT: &str = concat!(
     " (https://github.com/Defelo/nixpkgs-review-gha)"
 );
 
-pub async fn post_nixpkgs_comment(token: &str, pr: &str, body: &str) -> anyhow::Result<String> {
+#[derive(Debug, Deserialize)]
+pub struct PullRequest {
+    pub user: User,
+}
+
+pub async fn get_nixpkgs_pr(token: &str, pr: u64) -> anyhow::Result<PullRequest> {
+    Ok(make_http_client()
+        .get(format!(
+            "https://api.github.com/repos/NixOS/nixpkgs/pulls/{pr}"
+        ))
+        .bearer_auth(token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?)
+}
+
+pub async fn post_nixpkgs_comment(token: &str, pr: u64, body: &str) -> anyhow::Result<String> {
     #[derive(Serialize)]
     struct Request<'a> {
         body: &'a str,
@@ -26,6 +44,48 @@ pub async fn post_nixpkgs_comment(token: &str, pr: &str, body: &str) -> anyhow::
         ))
         .bearer_auth(token)
         .json(&Request { body })
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<Response>()
+        .await?
+        .html_url)
+}
+
+pub async fn approve_nixpkgs_pr(
+    token: &str,
+    pr: u64,
+    commit_id: &str,
+    body: &str,
+) -> anyhow::Result<String> {
+    #[derive(Serialize)]
+    struct Request<'a> {
+        commit_id: &'a str,
+        body: &'a str,
+        event: Event,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+    enum Event {
+        Approve,
+    }
+
+    #[derive(Deserialize)]
+    struct Response {
+        html_url: String,
+    }
+
+    Ok(make_http_client()
+        .post(format!(
+            "https://api.github.com/repos/NixOS/nixpkgs/pulls/{pr}/reviews"
+        ))
+        .bearer_auth(token)
+        .json(&Request {
+            commit_id,
+            body,
+            event: Event::Approve,
+        })
         .send()
         .await?
         .error_for_status()?

@@ -20,7 +20,7 @@ gha group "install packages" {
 
 gha group $"run nixpkgs-review ($inputs.extra-args-raw)" {
   cd nixpkgs
-  nixpkgs-review -- pr $env.PR_NUMBER ...[
+  nixpkgs-review -- pr $inputs.pr ...[
     --no-shell
     --no-exit-status
     --no-headers
@@ -31,7 +31,7 @@ gha group $"run nixpkgs-review ($inputs.extra-args-raw)" {
   ]
 }
 
-let reviewDir = $"~/.cache/nixpkgs-review/pr-($env.PR_NUMBER)" | path expand
+let reviewDir = $"~/.cache/nixpkgs-review/pr-($inputs.pr)" | path expand
 let reportJson = $"($reviewDir)/report.json"
 
 if $pushToAttic or $pushToCachix {

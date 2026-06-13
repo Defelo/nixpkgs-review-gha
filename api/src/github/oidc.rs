@@ -74,12 +74,24 @@ impl IdTokenVerifier {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
     pub actor: String,
-    pub actor_id: String,
+    #[serde(deserialize_with = "crate::serde_ext::from_string")]
+    pub actor_id: u64,
     pub repository: String,
-    pub run_attempt: String,
-    pub run_id: String,
+    #[serde(deserialize_with = "crate::serde_ext::from_string")]
+    pub run_attempt: u64,
+    #[serde(deserialize_with = "crate::serde_ext::from_string")]
+    pub run_id: u64,
     pub workflow: String,
     pub workflow_sha: String,
+}
+
+impl Claims {
+    pub fn logs_url(&self) -> String {
+        format!(
+            "https://github.com/{}/actions/runs/{}/attempts/{}",
+            self.repository, self.run_id, self.run_attempt
+        )
+    }
 }
 
 impl AdditionalClaims for Claims {}

@@ -15,7 +15,7 @@ gha group "display inputs" {
 gha group "get pr" {
   mut pr = {}
   loop {
-    $pr = ^gh api $"/repos/NixOS/nixpkgs/pulls/($env.PR_NUMBER)" | from json
+    $pr = ^gh api $"/repos/NixOS/nixpkgs/pulls/($inputs.pr)" | from json
     if $pr.mergeable_state != "unknown" or $pr.merged { break }
     print "mergeable state not known yet, retrying..."
     sleep 2sec
