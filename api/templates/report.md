@@ -7,7 +7,7 @@ Commit: [`{{ head }}`](https://github.com/NixOS/nixpkgs/commit/{{ head }}) ([sub
 Merge: [`{{ merge }}`](https://github.com/NixOS/nixpkgs/commit/{{ merge }})
 
 Triggered by @{{ actor }} ({{ actor_id }})
-Logs: https://github.com/{{ repository }}/actions/runs/{{ run_id }}/attempts/{{ run_attempt }}
+Logs: {{ logs_url }}
 
 {% macro fetch_cmds() -%}
 {%- for x in systems -%}

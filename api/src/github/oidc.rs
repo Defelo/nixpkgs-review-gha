@@ -82,6 +82,15 @@ pub struct Claims {
     pub workflow_sha: String,
 }
 
+impl Claims {
+    pub fn logs_url(&self) -> String {
+        format!(
+            "https://github.com/{}/actions/runs/{}/attempts/{}",
+            self.repository, self.run_id, self.run_attempt
+        )
+    }
+}
+
 impl AdditionalClaims for Claims {}
 
 #[derive(Debug, Error)]

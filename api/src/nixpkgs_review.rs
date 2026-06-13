@@ -65,12 +65,14 @@ impl ReportMarkdownRenderer {
             #[serde(flatten)]
             reporter: &'a Claims,
             success: bool,
+            logs_url: &'a str,
         }
 
         let ctx = tera::Context::from_serialize(Context {
             report,
             reporter,
             success: report.is_success(),
+            logs_url: &reporter.logs_url(),
         })
         .unwrap();
 

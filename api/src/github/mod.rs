@@ -34,6 +34,48 @@ pub async fn post_nixpkgs_comment(token: &str, pr: &str, body: &str) -> anyhow::
         .html_url)
 }
 
+pub async fn approve_nixpkgs_pr(
+    token: &str,
+    pr: &str,
+    commit_id: &str,
+    body: &str,
+) -> anyhow::Result<String> {
+    #[derive(Serialize)]
+    struct Request<'a> {
+        commit_id: &'a str,
+        body: &'a str,
+        event: Event,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+    enum Event {
+        Approve,
+    }
+
+    #[derive(Deserialize)]
+    struct Response {
+        html_url: String,
+    }
+
+    Ok(make_http_client()
+        .post(format!(
+            "https://api.github.com/repos/NixOS/nixpkgs/pulls/{pr}/reviews"
+        ))
+        .bearer_auth(token)
+        .json(&Request {
+            commit_id,
+            body,
+            event: Event::Approve,
+        })
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<Response>()
+        .await?
+        .html_url)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct User {
     pub login: String,

@@ -94,7 +94,9 @@ gha group "generate report" {
   }
 } | let review
 
-if $inputs.post-result and ($env.GH_TOKEN | is-empty) {
+if ($env.GH_TOKEN | is-empty) {
+  if not $inputs.post-result and $inputs.on-success == 'nothing' { exit; }
+
   gha group "submit reports to api" {
     let api_url = $env.API_URL | default -e "https://nrgha-api.defelo.de"
     let audience = http get $"($api_url)/oidc_client_id"
@@ -112,19 +114,21 @@ if $inputs.post-result and ($env.GH_TOKEN | is-empty) {
       merge: $merge,
       base_ref: $base_ref,
       systems: $in,
+      post_result: $inputs.post-result,
+      on_success: $inputs.on-success,
     }
     | http post $"($api_url)/submit_report" -H {Authorization: $"Bearer ($oidc_token)"} -t application/json
-  }
-}
+    | let response
 
-if ($env.GH_TOKEN | is-empty) {
-  match $inputs.on-success {
-    mark_as_ready => { "mark the PR as ready for review" }
-    approve => { "approve the PR" }
-    merge => { "merge the PR" }
-    _ => { exit }
-  } | gha error $"Cannot ($in) because no GH_TOKEN has been configured."
-  exit 1
+    $response | to json | print
+    
+    if ($response.errors | is-not-empty) {
+      $response.errors | each { gha error $"API error: ($in)" }
+      exit 1
+    }
+  }
+
+  exit
 }
 
 if $inputs.post-result {
