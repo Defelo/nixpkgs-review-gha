@@ -27,7 +27,7 @@ gha group "generate report" {
   | if $in { ":white_check_mark:" } else { ":x" }
   | let icon
 
-  mut nixpkgsReviewCmd = $"nixpkgs-review pr ($env.PR_NUMBER)"
+  mut nixpkgsReviewCmd = $"nixpkgs-review pr ($inputs.pr)"
   if ($inputs.extra-args-raw | is-not-empty) {
     $nixpkgsReviewCmd += $" ($inputs.extra-args-raw)"
   }
@@ -36,7 +36,7 @@ gha group "generate report" {
   $report += $"## ($icon) `nixpkgs-review` result\n\n"
   $report += $"Generated using [`nixpkgs-review-gha`]\(https://github.com/Defelo/nixpkgs-review-gha) \([`($env.SHA | str substring ..<7)`]\(https://github.com/Defelo/nixpkgs-review-gha/commit/($env.SHA)))\n\n"
   $report += $"Command: `($nixpkgsReviewCmd)`\n"
-  $report += $"Commit: [`($head)`]\(https://github.com/NixOS/nixpkgs/commit/($head)) \([subsequent changes]\(https://github.com/NixOS/nixpkgs/compare/($head)..pull/($env.PR_NUMBER)/head))\n"
+  $report += $"Commit: [`($head)`]\(https://github.com/NixOS/nixpkgs/commit/($head)) \([subsequent changes]\(https://github.com/NixOS/nixpkgs/compare/($head)..pull/($inputs.pr)/head))\n"
   $report += $"Merge: [`($merge)`]\(https://github.com/NixOS/nixpkgs/commit/($merge))\n\n"
   $report += $"Logs: https://github.com/($env.REPO)/actions/runs/($env.RUN_ID)/attempts/($env.RUN_ATTEMPT)\n\n"
 
@@ -84,7 +84,7 @@ gha group "generate report" {
   if $success { print "SUCCESS" } else { print "FAILURE" }
 
   $report
-  | str replace -r '^.*' $"$0 for [#($env.PR_NUMBER)]\(https://github.com/NixOS/nixpkgs/pull/($env.PR_NUMBER))"
+  | str replace -r '^.*' $"$0 for [#($inputs.pr)]\(https://github.com/NixOS/nixpkgs/pull/($inputs.pr))"
   | gha step-summary
 
   {
@@ -133,7 +133,7 @@ if ($env.GH_TOKEN | is-empty) {
 
 if $inputs.post-result {
   gha group "post comment" {
-    gh pr -R NixOS/nixpkgs comment $env.PR_NUMBER -b $review.report
+    gh pr -R NixOS/nixpkgs comment $inputs.pr -b $review.report
   }
 }
 
@@ -141,7 +141,7 @@ if not $review.success { exit }
 
 if $inputs.on-success == 'mark_as_ready' {
   gha group "mark pull request as ready for review" {
-    gh pr -R NixOS/nixpkgs ready $env.PR_NUMBER
+    gh pr -R NixOS/nixpkgs ready $inputs.pr
   }
 }
 
@@ -149,7 +149,7 @@ if $inputs.on-success in [approve, merge] {
   gha group "approve pull request" {
     let user_id = gh api /user | from json | get id
     if $user_id != $pr.user.id {
-      gh pr -R NixOS/nixpkgs review $env.PR_NUMBER --approve -b "Approved automatically following the successful run of `nixpkgs-review`."
+      gh pr -R NixOS/nixpkgs review $inputs.pr --approve -b "Approved automatically following the successful run of `nixpkgs-review`."
     } else if $inputs.on-success == 'approve' {
       gha error "You cannot approve your own pull request."
       exit 1
@@ -161,14 +161,14 @@ if $inputs.on-success == 'merge' {
   gha group "merge pull request" {
     let is_committer = gh api /repos/NixOS/nixpkgs | from json | get permissions.push
     if $is_committer {
-      gh pr -R NixOS/nixpkgs merge $env.PR_NUMBER --merge --match-head-commit $head
+      gh pr -R NixOS/nixpkgs merge $inputs.pr --merge --match-head-commit $head
     } else {
-      let current_head = gh api /repos/NixOS/nixpkgs/pulls/($env.PR_NUMBER) | from json | get head.sha
+      let current_head = gh api /repos/NixOS/nixpkgs/pulls/($inputs.pr) | from json | get head.sha
       if $current_head != $head {
         gha error $"Refusing to merge because the head branch was modified \(expected ($head), got ($current_head) instead)"
         exit 1
       }
-      gh pr -R NixOS/nixpkgs comment $env.PR_NUMBER -b "@NixOS/nixpkgs-merge-bot merge"
+      gh pr -R NixOS/nixpkgs comment $inputs.pr -b "@NixOS/nixpkgs-merge-bot merge"
     }
   }
 }
