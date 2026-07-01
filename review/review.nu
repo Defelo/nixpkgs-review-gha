@@ -11,11 +11,16 @@ let jobsArg = if $inputs.builders == "remote" { "-j0" } else { "" }
 let system = nix config show system
 
 gha group "install packages" {
+  let system = match $system {
+    "x86_64-darwin" => "aarch64-darwin"
+    _ => $system
+  }
+  
   [ nixpkgs-review ]
   | if $pushToAttic { $in ++ [ attic-client ] } else { }
   | if $pushToCachix { $in ++ [ cachix ] } else { }
   | each { $".#($in)" }
-  | nix profile add ...$in --builders ''
+  | nix profile add --system $system ...$in --builders ''
 }
 
 gha group $"run nixpkgs-review ($inputs.extra-args-raw)" {
