@@ -70,6 +70,20 @@
           ${lib.getExe pkgs.nushell} -c 'for x in (glob ${self}/**/*.nu) { print $"checking ($x)"; nu-check $x -d }'
           touch $out
         '';
+        actionlint =
+          pkgs.runCommand "actionlint"
+            {
+              nativeBuildInputs = [
+                pkgs.actionlint
+                pkgs.shellcheck
+              ];
+            }
+            ''
+              cp -r --no-preserve=mode ${self} src
+              cd src
+              actionlint
+              touch $out
+            '';
       });
     };
 
