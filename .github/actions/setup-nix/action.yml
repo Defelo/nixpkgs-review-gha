@@ -1,23 +1,18 @@
 name: setup-nix
+description: Set up Nix with optional remote builder support.
 
 inputs:
   system:
-    type: string
     required: true
   sandbox:
-    type: string
     default: "true"
   extra-nix-config:
-    type: string
     default: ""
   builders:
-    type: string
     default: ""
   ssh-key:
-    type: string
     default: ""
   ssh-cert:
-    type: string
     default: ""
 
 runs:
