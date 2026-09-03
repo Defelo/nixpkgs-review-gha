@@ -1,5 +1,16 @@
 name: review
-run-name: "review #${{ inputs.pr }}${{ inputs.extra-args && format(' ({0})', inputs.extra-args) || '' }}"
+run-name: >-
+  review #${{ inputs.pr }}${{
+    case(
+      inputs.extra-args != '' && inputs.extra-build-args != '',
+      format(' ({0} --build-args="{1}")', inputs.extra-args, inputs.extra-build-args),
+      inputs.extra-args != '',
+      format(' ({0})', inputs.extra-args),
+      inputs.extra-build-args != '',
+      format(' (--build-args="{0}")', inputs.extra-build-args),
+      ''
+    )
+  }}
 
 permissions: {}
 
@@ -56,6 +67,10 @@ on:
           - "both"
       extra-args:
         description: "nixpkgs-review extra args"
+        required: false
+        type: string
+      extra-build-args:
+        description: "nixpkgs-review extra --build-args"
         required: false
         type: string
       push-to-cache:
