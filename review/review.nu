@@ -10,6 +10,12 @@ let merge = $pr.merge_commit_sha
 let jobsArg = if $inputs.builders == "remote" { "-j0" } else { "" }
 let system = nix config show system
 
+if $inputs.allow-unfree {
+  $env.NIXPKGS_ALLOW_UNFREE = "1"
+  mkdir ~/.config/nixpkgs
+  "{ allowUnfree = true; }" | save -f ~/.config/nixpkgs/config.nix
+}
+
 gha group "install packages" {
   let system = match $system {
     "x86_64-darwin" => "aarch64-darwin"
