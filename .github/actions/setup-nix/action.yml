@@ -19,6 +19,9 @@ inputs:
   ssh-cert:
     type: string
     default: ""
+  allow-unfree:
+    type: boolean
+    default: false
 
 runs:
   using: composite
@@ -86,6 +89,18 @@ runs:
     - name: create build-dir
       shell: bash
       run: sudo mkdir -p /nix/build
+
+    - name: create nixpkgs config
+      if: ${{ inputs.allow-unfree == 'true' || inputs.allow-unfree == true }}
+      shell: bash
+      # Nixpkgs config allows building unfree packages
+      run: |
+        mkdir -p ~/.config/nixpkgs
+        cat > ~/.config/nixpkgs/config.nix <<EOF
+        {
+          allowUnfree = true;
+        }
+        EOF
 
     - name: post setup-nix
       if: runner.os == 'macOS'

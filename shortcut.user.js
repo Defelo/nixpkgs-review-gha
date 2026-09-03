@@ -17,6 +17,7 @@ const reviewDefaults = ({
   targetBranch,
   hasLinuxRebuilds,
   hasDarwinRebuilds,
+  hasUnfree,
 }) => {
   const darwinSandbox = "relaxed";
 
@@ -32,6 +33,7 @@ const reviewDefaults = ({
     "aarch64-darwin": !hasRebuilds || hasDarwinRebuilds ? `yes_sandbox_${darwinSandbox}` : "no",
     // "riscv64-linux": false,
     // "extra-args": "",
+    "allow-unfree": hasUnfree,
     // "push-to-cache": true,
     // "upterm": false,
     // "post-result": true,
@@ -80,6 +82,7 @@ const getPrDetails = pr => {
   const authoredByMe = author === user;
   const hasLinuxRebuilds = !labels.some(l => /rebuild-linux: 0$/.test(l));
   const hasDarwinRebuilds = !labels.some(l => /rebuild-darwin: 0$/.test(l));
+  const hasUnfree = labels.some(l => /unfree/i.test(l));
   const state = document
     .querySelector("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span, span.State")
     .innerText.trim()
@@ -94,6 +97,7 @@ const getPrDetails = pr => {
     targetBranch,
     hasLinuxRebuilds,
     hasDarwinRebuilds,
+    hasUnfree,
     state,
   };
 };
