@@ -55,6 +55,11 @@ on:
           - "gha"
           - "remote"
           - "both"
+      allow-unfree:
+        description: "Allow unfree packages"
+        required: true
+        type: boolean
+        default: false
       upterm:
         description: "Start upterm session after nix build"
         required: true
@@ -109,10 +114,16 @@ jobs:
           builders: ${{ inputs.builders != 'gha' && vars.BUILDERS || '' }}
           ssh-key: ${{ inputs.builders != 'gha' && secrets.SSH_KEY || '' }}
           ssh-cert: ${{ inputs.builders != 'gha' && secrets.SSH_CERT || '' }}
+          allow-unfree: ${{ inputs.allow-unfree }}
 
       - name: nix build
-        run: nix build --keep-going -L ${{ inputs.packages }}
+        run: |
+          nix build --keep-going -L \
+            ${{ inputs.allow-unfree && '--impure' || '' }} \
+            ${{ inputs.packages }}
         if: ${{ inputs.packages != '' }}
+        env:
+          NIXPKGS_ALLOW_UNFREE: ${{ inputs.allow-unfree && '1' || '0' }}
 
       - name: set GITHUB_TOKEN
         if: ${{ inputs.upterm }}

@@ -58,6 +58,11 @@ on:
         description: "nixpkgs-review extra args"
         required: false
         type: string
+      allow-unfree:
+        description: "Allow unfree packages"
+        required: true
+        type: boolean
+        default: false
       push-to-cache:
         description: "Push to cache"
         required: true
@@ -161,6 +166,7 @@ jobs:
           builders: ${{ inputs.builders != 'gha' && vars.BUILDERS || '' }}
           ssh-key: ${{ inputs.builders != 'gha' && secrets.SSH_KEY || '' }}
           ssh-cert: ${{ inputs.builders != 'gha' && secrets.SSH_CERT || '' }}
+          allow-unfree: ${{ inputs.allow-unfree }}
 
       - name: clone nixpkgs
         uses: actions/checkout@v6
