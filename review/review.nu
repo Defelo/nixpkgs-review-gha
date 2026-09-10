@@ -9,6 +9,7 @@ let base = $pr.base.sha
 let merge = $pr.merge_commit_sha
 let jobsArg = if $inputs.builders == "remote" { "-j0" } else { "" }
 let system = nix config show system
+let buildArgs = --build-args=($"-L ($jobsArg) ($inputs.extra-build-args)")
 
 gha group "install packages" {
   let system = match $system {
@@ -23,14 +24,14 @@ gha group "install packages" {
   | nix profile add --system $system ...$in --builders ''
 }
 
-gha group $"run nixpkgs-review ($inputs.extra-args-raw)" {
+gha group $"run nixpkgs-review ($inputs.extra-args-raw) ($buildArgs)" {
   cd nixpkgs
   nixpkgs-review -- pr $inputs.pr ...[
     --no-shell
     --no-exit-status
     --no-headers
     --print-result
-    --build-args=($"-L ($jobsArg)")
+    $buildArgs
     --pr-json=($env.PR_JSON)
     ...$inputs.extra-args
   ]
