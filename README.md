@@ -111,6 +111,8 @@ The userscript assumes that you forked this repository to your personal account 
 3. Enter the number of the pull request in nixpkgs you would like to review and click on "Run workflow"
 4. Reload the page if necessary and click on the review run to see the logs
 
+To additionally build packages that would normally not be built (for example NixOS tests which are excluded by default), pass `-a <pkgName>` to the `extra-args` input of the review workflow. To *only* build a specific package, pass `-p <pkgName>`. Both of these options can be passed multiple times.
+
 ## Experimental Features
 
 ### Identify still failing packages
