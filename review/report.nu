@@ -31,6 +31,9 @@ gha group "generate report" {
   if ($inputs.extra-args-raw | is-not-empty) {
     $nixpkgsReviewCmd += $" ($inputs.extra-args-raw)"
   }
+  if ($inputs.extra-build-args | is-not-empty) {
+    $nixpkgsReviewCmd += $" --build-args='($inputs.extra-build-args)'"
+  }
 
   mut report = ""
   $report += $"## ($icon) `nixpkgs-review` result\n\n"
@@ -110,6 +113,7 @@ if ($env.GH_TOKEN | is-empty) {
     | {
       pr: $inputs.pr,
       extra_args: $inputs.extra-args-raw,
+      extra_build_args: $inputs.extra-build-args,
       head: $head,
       merge: $merge,
       base_ref: $base_ref,

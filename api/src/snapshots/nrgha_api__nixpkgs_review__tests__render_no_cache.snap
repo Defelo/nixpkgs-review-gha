@@ -6,7 +6,7 @@ expression: "ReportMarkdownRenderer::new().render(&report, &reporter())"
 
 Generated using [`nixpkgs-review-gha`](https://github.com/Defelo/nixpkgs-review-gha) ([`f0bf939`](https://github.com/Defelo/nixpkgs-review-gha/commit/f0bf93978802df847890d6f70aa57464cfab48f3))
 
-Command: `nixpkgs-review pr 1337 -a extra-package`
+Command: `nixpkgs-review pr 1337 -a extra-package --build-args='--max-jobs 1'`
 Commit: [`842d0b3850da7fb970fd81c60b7527ff8e3a3c63`](https://github.com/NixOS/nixpkgs/commit/842d0b3850da7fb970fd81c60b7527ff8e3a3c63) ([subsequent changes](https://github.com/NixOS/nixpkgs/compare/842d0b3850da7fb970fd81c60b7527ff8e3a3c63..pull/1337/head))
 Merge: [`d8b086693fa2d763b675ecf2373f7a3b8ca9755d`](https://github.com/NixOS/nixpkgs/commit/d8b086693fa2d763b675ecf2373f7a3b8ca9755d)
 

@@ -2,7 +2,7 @@
 
 Generated using [`nixpkgs-review-gha`](https://github.com/Defelo/nixpkgs-review-gha) ([`{{ workflow_sha | truncate(length=7, end="") }}`](https://github.com/Defelo/nixpkgs-review-gha/commit/{{ workflow_sha }}))
 
-Command: `nixpkgs-review pr {{ pr }}{% if extra_args != '' %} {{ extra_args }}{% endif %}`
+Command: `nixpkgs-review pr {{ pr }}{% if extra_args != '' %} {{ extra_args }}{% endif %}{% if extra_build_args != '' %} --build-args='{{ extra_build_args }}'{% endif %}`
 Commit: [`{{ head }}`](https://github.com/NixOS/nixpkgs/commit/{{ head }}) ([subsequent changes](https://github.com/NixOS/nixpkgs/compare/{{ head }}..pull/{{ pr }}/head))
 Merge: [`{{ merge }}`](https://github.com/NixOS/nixpkgs/commit/{{ merge }})
 

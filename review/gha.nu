@@ -45,6 +45,7 @@ export def "gha review-inputs" [] {
   $env.INPUTS
   | from json
   | upsert extra-args { default "" }
+  | upsert extra-build-args { default "" }
   | update cells -c [
     x86_64-linux
     aarch64-linux
