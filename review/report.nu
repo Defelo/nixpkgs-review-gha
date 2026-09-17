@@ -27,7 +27,11 @@ gha group "generate report" {
   | if $in { ":white_check_mark:" } else { ":x:" }
   | let icon
 
-  mut nixpkgsReviewCmd = $"nixpkgs-review pr ($inputs.pr)"
+  mut nixpkgsReviewCmd = if $inputs.allow-unfree {
+    $"NIXPKGS_ALLOW_UNFREE=1 nixpkgs-review pr ($inputs.pr)"
+  } else {
+    $"nixpkgs-review pr ($inputs.pr)"
+  }
   if ($inputs.extra-args-raw | is-not-empty) {
     $nixpkgsReviewCmd += $" ($inputs.extra-args-raw)"
   }
