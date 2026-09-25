@@ -1,0 +1,159 @@
+{
+  "$defs": {
+    "Backend": {
+      "enum": [
+        "nixpkgs",
+        "flake",
+        "external-flake"
+      ],
+      "type": "string"
+    },
+    "Mode": {
+      "enum": [
+        "head",
+        "merge"
+      ],
+      "type": "string"
+    },
+    "Publication": {
+      "enum": [
+        "none",
+        "request-approval"
+      ],
+      "type": "string"
+    },
+    "Recipe": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "directory": {
+          "default": ".",
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "source_input": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "commit",
+        "source_input"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "$ref": "#/$defs/Backend"
+    },
+    "cache_profile": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "checks": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "directory": {
+      "default": ".",
+      "type": "string"
+    },
+    "expected_base": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expected_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mode": {
+      "$ref": "#/$defs/Mode",
+      "default": "head"
+    },
+    "packages": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "post_result": {
+      "default": false,
+      "type": "boolean"
+    },
+    "pr": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "publication": {
+      "$ref": "#/$defs/Publication",
+      "default": "none"
+    },
+    "recipe": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Recipe"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "repository": {
+      "type": "string"
+    },
+    "revision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runner_profile": {
+      "default": "hosted-v1",
+      "type": "string"
+    },
+    "schema_version": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "systems": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "test_profile": {
+      "default": "checks-v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "repository",
+    "backend",
+    "systems"
+  ],
+  "title": "Request",
+  "type": "object"
+}

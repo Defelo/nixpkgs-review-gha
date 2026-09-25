@@ -1,0 +1,25 @@
+{
+  "backend": "external-flake",
+  "cache_profile": null,
+  "checks": ["smoke"],
+  "directory": ".",
+  "expected_base": null,
+  "expected_head": "REPLACE_EXACT_SOURCE_COMMIT",
+  "mode": "head",
+  "packages": ["openpencil-desktop", "openpencil-cli", "openpencil-mcp"],
+  "post_result": false,
+  "pr": null,
+  "publication": "none",
+  "recipe": {
+    "commit": "REPLACE_EXACT_RECIPE_COMMIT",
+    "directory": ".",
+    "repository": "REPLACE_OWNER/REPLACE_RECIPE_REPOSITORY",
+    "source_input": "source"
+  },
+  "repository": "open-pencil/open-pencil",
+  "revision": "REPLACE_EXACT_SOURCE_COMMIT",
+  "runner_profile": "hosted-v1",
+  "schema_version": 1,
+  "systems": ["x86_64-linux"],
+  "test_profile": "checks-rebuild-v1"
+}

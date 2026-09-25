@@ -1,0 +1,501 @@
+{
+  "$defs": {
+    "Backend": {
+      "enum": [
+        "nixpkgs",
+        "flake",
+        "external-flake"
+      ],
+      "type": "string"
+    },
+    "EffectivePlan": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "flake_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lock": true,
+        "lock_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata_digest": {
+          "type": "string"
+        },
+        "source_nar_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "system": {
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/Target"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "metadata_digest",
+        "system",
+        "targets",
+        "digest"
+      ],
+      "type": "object"
+    },
+    "Identity": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "tree": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "repository",
+        "commit",
+        "tree"
+      ],
+      "type": "object"
+    },
+    "Mode": {
+      "enum": [
+        "head",
+        "merge"
+      ],
+      "type": "string"
+    },
+    "Nar": {
+      "additionalProperties": false,
+      "properties": {
+        "nar_hash": {
+          "type": "string"
+        },
+        "nar_size": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "references": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "nar_hash",
+        "nar_size",
+        "references"
+      ],
+      "type": "object"
+    },
+    "Outcome": {
+      "enum": [
+        "passed",
+        "failed",
+        "blocked",
+        "unsupported",
+        "not_run",
+        "no_changes"
+      ],
+      "type": "string"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "properties": {
+        "controller": {
+          "$ref": "#/$defs/Identity"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "pr": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PullRequest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recipe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "run_attempt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "run_id": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "run_repository": {
+          "type": "string"
+        },
+        "schema_version": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "target": {
+          "$ref": "#/$defs/Identity"
+        },
+        "tool_lock": true,
+        "tool_lock_digest": {
+          "type": "string"
+        },
+        "workflow": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "request",
+        "target",
+        "controller",
+        "workflow",
+        "tool_lock",
+        "tool_lock_digest",
+        "run_repository",
+        "run_id",
+        "run_attempt",
+        "digest"
+      ],
+      "type": "object"
+    },
+    "Publication": {
+      "enum": [
+        "none",
+        "request-approval"
+      ],
+      "type": "string"
+    },
+    "PullRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string"
+        },
+        "head_repository": {
+          "type": "string"
+        },
+        "merge": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "number": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "number",
+        "url",
+        "head_repository",
+        "head",
+        "base",
+        "parents"
+      ],
+      "type": "object"
+    },
+    "Recipe": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "directory": {
+          "default": ".",
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "source_input": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "commit",
+        "source_input"
+      ],
+      "type": "object"
+    },
+    "Request": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "$ref": "#/$defs/Backend"
+        },
+        "cache_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checks": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "directory": {
+          "default": ".",
+          "type": "string"
+        },
+        "expected_base": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected_head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode",
+          "default": "head"
+        },
+        "packages": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "post_result": {
+          "default": false,
+          "type": "boolean"
+        },
+        "pr": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "publication": {
+          "$ref": "#/$defs/Publication",
+          "default": "none"
+        },
+        "recipe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Recipe"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repository": {
+          "type": "string"
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runner_profile": {
+          "default": "hosted-v1",
+          "type": "string"
+        },
+        "schema_version": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "systems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "test_profile": {
+          "default": "checks-v1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "repository",
+        "backend",
+        "systems"
+      ],
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "type": "boolean"
+        },
+        "derivation": {
+          "type": "string"
+        },
+        "installable": {
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "installable",
+        "derivation",
+        "outputs",
+        "check"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "build": {
+      "$ref": "#/$defs/Outcome"
+    },
+    "closure": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Nar"
+      },
+      "type": "object"
+    },
+    "effective": {
+      "$ref": "#/$defs/EffectivePlan"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "files": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "nix_version": {
+      "type": "string"
+    },
+    "plan": {
+      "$ref": "#/$defs/Plan"
+    },
+    "publication": {
+      "$ref": "#/$defs/Outcome"
+    },
+    "retrieval": {
+      "$ref": "#/$defs/Outcome"
+    },
+    "runner_architecture": {
+      "type": "string"
+    },
+    "sandbox": {
+      "type": "string"
+    },
+    "schema_version": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "target_outcomes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Outcome"
+      },
+      "type": "object"
+    },
+    "test_evidence": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "tests": {
+      "$ref": "#/$defs/Outcome"
+    }
+  },
+  "required": [
+    "schema_version",
+    "plan",
+    "effective",
+    "runner_architecture",
+    "nix_version",
+    "sandbox",
+    "build",
+    "tests",
+    "publication",
+    "retrieval",
+    "files",
+    "target_outcomes",
+    "test_evidence",
+    "closure"
+  ],
+  "title": "PlatformResult",
+  "type": "object"
+}

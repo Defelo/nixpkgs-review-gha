@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "recipes": [],
+  "caches": {},
+  "max_artifact_bytes": 4294967296,
+  "max_nar_bytes": 8589934592,
+  "publication_enabled": false
+}

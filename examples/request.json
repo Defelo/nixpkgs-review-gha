@@ -1,0 +1,26 @@
+{
+  "backend": "flake",
+  "cache_profile": null,
+  "checks": [
+    "smoke"
+  ],
+  "directory": ".",
+  "expected_base": null,
+  "expected_head": null,
+  "mode": "head",
+  "packages": [
+    "default"
+  ],
+  "post_result": false,
+  "pr": 1,
+  "publication": "none",
+  "recipe": null,
+  "repository": "OWNER/REPOSITORY",
+  "revision": null,
+  "runner_profile": "hosted-v1",
+  "schema_version": 1,
+  "systems": [
+    "x86_64-linux"
+  ],
+  "test_profile": "checks-v1"
+}

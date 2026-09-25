@@ -28,6 +28,48 @@
     {
       legacyPackages = eachSystem lib.id;
 
+      packages = eachSystem (
+        pkgs:
+        let
+          reviewPython = pkgs.python3.withPackages (_: [ pkgs.nixpkgs-review ]);
+          selector = pkgs.writeShellScriptBin "repo-review-nixpkgs-select" ''
+            exec ${reviewPython}/bin/python ${./adapters/nixpkgs.py} "$@"
+          '';
+        in
+        rec {
+          repo-review = pkgs.rustPlatform.buildRustPackage {
+            pname = "repo-review";
+            version = "0.1.0";
+            src = lib.cleanSource self;
+            cargoLock.lockFile = ./Cargo.lock;
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+            postInstall = ''
+              wrapProgram $out/bin/repo-review --prefix PATH : ${
+                lib.makeBinPath [
+                  pkgs.git
+                  pkgs.nix
+                  pkgs.gh
+                  pkgs.nixpkgs-review
+                  pkgs.attic-client
+                  pkgs.cachix
+                  pkgs.coreutils
+                  selector
+                ]
+              }
+            '';
+            meta.mainProgram = "repo-review";
+          };
+          default = repo-review;
+        }
+      );
+
+      apps = eachSystem (pkgs: {
+        repo-review = {
+          type = "app";
+          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.repo-review}/bin/repo-review";
+        };
+      });
+
       formatter = eachSystem (
         pkgs:
         pkgs.treefmt.withConfig {
@@ -40,6 +82,7 @@
 
       checks = eachSystem (pkgs: {
         inherit (pkgs) nixpkgs-review;
+        inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) repo-review;
         fmt = pkgs.runCommand "fmt-check" { } ''
           cp -r --no-preserve=mode ${self} repo
           ${lib.getExe self.formatter.${pkgs.stdenv.hostPlatform.system}} -C repo --ci

@@ -9,6 +9,11 @@
     "*.md"
     ".gitignore"
     "LICENSE"
+    ".envrc"
+    "*.txt"
+    "*.py"
+    "schemas/*.json"
+    "examples/request.json"
   ];
 
   formatter.nixfmt = {
@@ -22,11 +27,25 @@
     includes = [
       "*.js"
       "*.yml"
+      "*.json"
     ];
     options = [
       "--write"
       "--print-width=120"
       "--arrow-parens=avoid"
     ];
+  };
+  formatter.rustfmt = {
+    command = lib.getExe pkgs.rustfmt;
+    includes = [ "*.rs" ];
+    options = [
+      "--edition"
+      "2024"
+    ];
+  };
+  formatter.taplo = {
+    command = lib.getExe pkgs.taplo;
+    includes = [ "*.toml" ];
+    options = [ "fmt" ];
   };
 }
