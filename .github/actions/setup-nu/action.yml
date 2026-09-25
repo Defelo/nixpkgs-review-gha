@@ -1,4 +1,5 @@
 name: setup-nu
+description: Download and install Nushell for the current runner platform.
 
 runs:
   using: composite
