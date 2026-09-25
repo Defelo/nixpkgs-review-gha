@@ -10,6 +10,8 @@ pub struct Report {
     #[serde(deserialize_with = "crate::serde_ext::from_string")]
     pub pr: u64,
     pub extra_args: String,
+    #[serde(default)]
+    pub extra_build_args: String,
     pub head: String,
     pub merge: String,
     pub base_ref: String,
@@ -132,6 +134,7 @@ mod tests {
     fn render_no_extra_args() {
         let report = Report {
             extra_args: String::new(),
+            extra_build_args: String::new(),
             ..report()
         };
 
@@ -177,6 +180,7 @@ mod tests {
         Report {
             pr: 1337,
             extra_args: "-a extra-package".into(),
+            extra_build_args: "--max-jobs 1".into(),
             head: "842d0b3850da7fb970fd81c60b7527ff8e3a3c63".into(),
             merge: "d8b086693fa2d763b675ecf2373f7a3b8ca9755d".into(),
             base_ref: "master".into(),
