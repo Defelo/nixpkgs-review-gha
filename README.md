@@ -1,104 +1,176 @@
 # nixpkgs-review-gha
 
-Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
+Exact-revision GitHub repository reviews through Nix. This retains the existing
+fork of [Defelo/nixpkgs-review-gha](https://github.com/Defelo/nixpkgs-review-gha),
+its history, MIT attribution, multi-platform mechanics, and Attic/Cachix setting
+names. `repo-review` is a compact Rust CLI; Git, Nix, GitHub CLI,
+[nixpkgs-review](https://github.com/Mic92/nixpkgs-review), Attic and Cachix remain
+the protocol/build clients, pinned through `flake.lock`.
 
-## Features
-- Build on `x86_64-linux`, `aarch64-linux`, `x86_64-darwin` and `aarch64-darwin`
-- No local setup
-- Automatically post results on the reviewed pull request
-- Optionally start an [Upterm](https://upterm.dev/) session after nixpkgs-review has finished to allow interactive testing/debugging via SSH
-- Push new packages to an [Attic](https://github.com/zhaofengli/attic) or [Cachix](https://www.cachix.org/) cache
-- After a successful review, automatically mark the PR as ready for review, approve it, or merge it (directly or via the [nixpkgs-merge-bot](https://github.com/NixOS/nixpkgs-merge-bot))
-- Optionally use [Nix remote builders](https://nix.dev/manual/nix/latest/advanced-topics/distributed-builds) (either in addition to or instead of the local GitHub Actions runner).
-- Add a "Run nixpkgs-review" shortcut to pull request pages in nixpkgs
+**Activation status:** implementation requires a reviewed default-branch merge
+before `review-repository.yml` can be dispatched normally. A PR or YAML file is
+not evidence of a running service. See [activation](docs/activation.md),
+[inspection](docs/inspection.md), and generated `review-service.json`.
 
-## Setup
-1. [Fork](https://github.com/Defelo/nixpkgs-review-gha/fork) this repository.
-2. In your fork, go to the [Actions](../../actions) tab and enable GitHub Actions workflows.
-3. If you want to set up [automatic self-updates](#automatic-self-updates-optional), please enable the `self-update` workflow ([Actions / `self-update`](../../actions/workflows/self-update.yml) > `...` button (top right corner) > `Enable workflow`).
+## Backends
 
-### Post Results / Auto Approve/Merge (optional)
-If you want nixpkgs-review-gha to automatically post the results on the reviewed pull requests or automatically mark them as ready for review or approve/merge them, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens):
+| Backend | Selection |
+|---|---|
+| `nixpkgs` | NixOS/nixpkgs PR changes, using the pinned nixpkgs-review change detector |
+| `flake` | Explicit `packages.SYSTEM.NAME` and `checks.SYSTEM.NAME` from the exact target revision |
+| `external-flake` | Explicit outputs from a separately pinned, policy-approved recipe; one direct `flake = false` input receives the exact source |
 
-1. Go to <https://github.com/settings/tokens> and generate a new **classic** token with the `public_repo` scope.
-2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_TOKEN` and set its value to the personal access token you generated before.
+Only GitHub coordinates are supported. No flake and no recipe means
+**unsupported**. There are no per-project engine conditionals, inferred build
+commands, arbitrary hooks, arbitrary Nix config, or arbitrary runner labels.
+Dynamic/content-addressed derivations without known output paths are explicitly
+unsupported by the initial frozen-path contract.
 
-### Automatic Self-Updates (optional)
-If you want your fork to update itself on a regular basis, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens). Note that this token is different from the one used above!
+The Nixpkgs adapter pins the 3.7.0 Python API and rejects version drift. It uses
+upstream `Review.build_commit` and `nix_eval`, replacing only the realization
+boundary to freeze selections first. It fetches exact commits, not `pr N` again.
+Head mode does not require mergeability. Merge mode checks exact `[base, head]`
+parents. Empty successful selection is `no_changes`; missing reports are failure.
+The small recorded fixture is **not** a live Nixpkgs review pass.
 
-1. Go to <https://github.com/settings/personal-access-tokens> and generate a new **Fine-grained token** token with access to only your fork ("Repository access" > "Only select repositories") and "Read and write" permissions for both "Contents" and "Workflows".
-2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_SELF_UPDATE_TOKEN` and set its value to the personal access token you generated before.
+## CLI and request
 
-### Push to Attic Cache (optional)
-Follow these steps if you want nixpkgs-review-gha to push new packages to an [Attic](https://github.com/zhaofengli/attic) cache. Replace `$CACHE` with the name of your cache (e.g. `nixpkgs`) and `$SERVER` with the url of your Attic server (e.g. `https://attic.example.com/`):
-
-1. Generate a token with `push` and `pull` permissions: `atticadm make-token --sub nixpkgs-review-gha --validity 1y --pull $CACHE --push $CACHE`
-2. [Create a new variable](../../settings/variables/actions/new) with the name `ATTIC_SERVER` and set it to the value of `$SERVER`
-3. [Create a new variable](../../settings/variables/actions/new) with the name `ATTIC_CACHE` and set it to the value of `$CACHE`
-4. [Create a new secret](../../settings/secrets/actions/new) with the name `ATTIC_TOKEN` and set its value to the token you generated before.
-
-### Push to Cachix (optional)
-Follow these steps if you want nixpkgs-review-gha to push new packages to a [Cachix](https://www.cachix.org/) cache. Note: If both an Attic cache and a Cachix cache is configured, the Attic cache is preferred and the Cachix configuration is ignored.
-
-1. Go to https://app.cachix.org/ and set up your binary cache.
-2. [Create a new variable](../../settings/variables/actions/new) with the name `CACHIX_CACHE` and set it to the name of your Cachix cache.
-3. [Create a new secret](../../settings/secrets/actions/new) with the name `CACHIX_AUTH_TOKEN` and set its value to your auth token. If you are using a self-signed cache, you also need to create a `CACHIX_SIGNING_KEY` secret and set its value to your private signing key.
-
-### Extra Nix Config (optional)
-If you have additional configuration you want to append to `/etc/nix/nix.conf`, you can [create a new variable](../../settings/variables/actions/new) with the name `EXTRA_NIX_CONFIG`.
-For example, if you want to configure nix to use additional substituters, set its value to the following:
-
-```
-extra-substituters = https://nix-community.cachix.org
-extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+```sh
+nix run github:OWNER/nixpkgs-review-gha/CONTROLLER_SHA#repo-review -- schema request
+nix run github:OWNER/nixpkgs-review-gha/CONTROLLER_SHA#repo-review -- example
+repo-review validate request.json
+repo-review plan request.json --controller OWNER/nixpkgs-review-gha \
+  --revision CONTROLLER_SHA --root TRUSTED-CONTROLLER --output plan.json
+repo-review dispatch request.json --controller OWNER/nixpkgs-review-gha --revision CONTROLLER_SHA
+repo-review status --controller OWNER/nixpkgs-review-gha --run RUN_ID --wait-seconds 120
+repo-review report --controller OWNER/nixpkgs-review-gha --run RUN_ID --attempt 1 --output new-report-dir
 ```
 
-### Remote Builders (optional)
-It is possible to configure nixpkgs-review-gha to use [remote builders](https://nix.dev/manual/nix/latest/advanced-topics/distributed-builds) either instead of or in addition to the local GitHub Actions runner.
-For this to work, the GitHub Actions runner needs to be able to connect to your remote builders via SSH, and you need to configure an SSH keypair for authentication.
+File input and `-` (stdin) use the same strict versioned request. Unknown fields,
+conflicting selectors, zero targets, unsafe names/paths, token-bearing URLs,
+unknown profiles and malformed coordinates are rejected. JSON Schemas and
+examples are generated from the Rust types, with cross-field semantic validation
+in `repo-review validate`. Never substitute fake 40-character SHAs for unresolved
+revisions. The [OpenPencil template](examples/openpencil-external.template.json)
+is deliberately invalid until Prompt 02 supplies real source and recipe commits.
 
-Set the following [secrets](../../settings/secrets/actions):
+Commands emit JSON. Exit codes: `0` completed/passed (a status query may describe
+a still-running run), `2` invalid/blocked/tool error, `3` failed build/aggregate,
+`4` unsupported backend/target. Status polling is bounded to 300 seconds. Dispatch
+prints the request identity and run-list command; use the returned GitHub run ID
+and attempt for later invocations. There is no background daemon.
 
-- `SSH_KEY`: A private ssh key which is authorized to access your remote builders. You can generate one using `ssh-keygen -t ed25519 -f ssh_key -N '' -C ''`.
-- `SSH_CERT`: If you have configured an [SSH certificate authority](https://manpages.debian.org/unstable/openssh-client/ssh-keygen.1.en.html#CERTIFICATES), the certificate which authorizes your `SSH_KEY` to access the remote builders. You don't need to set this variable if you have authorized your `SSH_KEY` directly (i.e. added your public key to `authorized_keys` on the remote builder).
-  <details>
-  <summary>Example command to generate a shortlived certificate:</summary>
+## Workflow use
 
-  ```shell
-  ssh-keygen -Us $CA_PUBKEY_PATH \
-    -I nixpkgs-review-gha \
-    -n $REMOTE_USERNAME \
-    -O clear \
-    -O force-command="nix-daemon --stdio" \
-    -V +1h \
-    $PUBKEY_PATH
-  ```
-  
-  </details>
+Dispatch `.github/workflows/review-repository.yml` with one string input,
+`request`. Reusable callers must pin a **full reviewed controller SHA**:
 
-Set the following [variables](../../settings/variables/actions):
-
-- `BUILDERS`: A newline separated list of build machines in the same format as the [`builders` option in `nix.conf`](https://nix.dev/manual/nix/latest/command-ref/conf-file#conf-builders). You will need to set the value of the third field (ssh identity) to `/etc/nix/ssh_id` which is where your `SSH_KEY` is placed. Your `SSH_CERT` should be picked up automatically, if you have configured one.
-- `USE_BUILDERS`: Either `no`, `yes`, or `always`. If set to `yes`, remote builders are used *in addition to* the GitHub Actions runner. If set to `always`, *only* remote builders are used and no builds happen on the runner. If set to `no`, remote builders are not used at all.
-
-For example, you can set `BUILDERS` to the following if you want to build on the [nix-community builders](https://nix-community.org/community-builders/). Keep in mind that these builders should generally [not be trusted](https://nix-community.org/community-builders/#notes-on-security-and-safety), so be careful with what you might push into the [binary caches](#push-to-attic-cache-optional) you configured above.
-
-```
-ssh-ng://YOUR_USERNAME@build-box.nix-community.org x86_64-linux /etc/nix/ssh_id 6 - benchmark,big-parallel,kvm,nixos-test,uid-range - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUVsSVE1NHFBeTdEaDYzckJ1ZFlLZGJ6SkhycmJyck1YTFlsN1BrbWs4OEg=
-ssh-ng://YOUR_USERNAME@aarch64-build-box.nix-community.org aarch64-linux /etc/nix/ssh_id 20 - benchmark,big-parallel,gccarch-armv7-a,gccarch-armv8-a,kvm,nixos-test,uid-range - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUc5dXlmaHlsaStCUnRrNjR5K25pcXRiK3NLcXVSR0daODdmNFlSYzhFRTE=
-ssh-ng://YOUR_USERNAME@darwin-build-box.nix-community.org x86_64-darwin,aarch64-darwin /etc/nix/ssh_id 2 - big-parallel - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUtNSGhsY243ZlVwVXVpT0ZlSWhEcUJ6Qk5Gc2JOcXErTnB6dUdYM2U2enY=
+```yaml
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  review:
+    uses: OWNER/nixpkgs-review-gha/.github/workflows/review-repository.yml@FULL_REVIEWED_SHA
+    with:
+      request: '{"schema_version":1,"repository":"OWNER/PROJECT","revision":"EXACT_SHA","backend":"flake","systems":["x86_64-linux"],"packages":["default"],"checks":["smoke"]}'
 ```
 
-### Shortcuts on nixpkgs PR pages (optional)
-Add [`shortcut.user.js`](shortcut.user.js) as a userscript in your browser for `https://github.com/` for example using the [User JavaScript and CSS chrome extension](https://chromewebstore.google.com/detail/user-javascript-and-css/nbhcbdghjpllgmfilhnhkllmkecfmpld) or [Violentmonkey](https://violentmonkey.github.io/).
+The bootstrap job obtains GitHub's authenticated OIDC identity and uses
+`job_workflow_ref` / `job_workflow_sha` to check out the **called controller**.
+There is no caller-controlled controller override. Only this bootstrap job has
+OIDC permission; build jobs have `contents: read` and no publication secrets.
+External reusable calls retain reports in caller artifacts; report credentials
+and publication authority are never inherited from callers.
 
-The userscript assumes that you forked this repository to your personal account without changing its name. However, if you forked the repo to an organization instead or used a custom repo name or if you would like to use a different repo you have access to, you need to explicitly configure the userscript by updating the `repo` constant at the top of the file to point to the repository you would like to use.
+Runner profile `hosted-v1`: `ubuntu-24.04` → x86_64-linux,
+`ubuntu-24.04-arm` → aarch64-linux, `macos-15-intel` → x86_64-darwin,
+`macos-15` → aarch64-darwin. `uname` and Nix's actual system are checked before
+evaluation. No emulation, personal machines or remote builders. Initial live
+acceptance is x86_64-linux; other platforms have contract coverage, not an
+invented live pass. Darwin uses the explicit `relaxed` sandbox profile; Linux
+requires `true`. IFD and flake nixConfig are disabled, jobs/cores are 2, command
+build timeout 1800s, silent timeout 600s, whole build job 60 minutes.
 
-> [!TIP]
-> Opening the [raw file](shortcut.user.js?raw=true) with Violentmonkey installed will prompt for installation.
+`checks-v1` accepts realization (including substitution) without claiming fresh
+execution. `checks-rebuild-v1` explicitly rebuilds each selected check; unrelated
+dependencies are not rebuilt. Every selected derivation's complete outputs and
+runtime closure are exported, bounded to 4 GiB of artifact data / 8 GiB NAR data.
 
-## Usage
-1. Open the [review workflow in the "Actions" tab](../../actions/workflows/review.yml)
-2. Click on "Run workflow"
-3. Enter the number of the pull request in nixpkgs you would like to review and click on "Run workflow"
-4. Reload the page if necessary and click on the review run to see the logs
+## Publication and consumption
+
+Publication defaults to `none`. `request-approval` records a pending gate; it
+does not grant cache access. An authorized operator dispatches
+`publish-review.yml` on the default branch with the exact source run, attempt,
+controller SHA, system, effective-plan digest and bundle digest. The service
+verifies source workflow identity, authorized actors, reviewed ancestry,
+schemas, file hashes, source identities, systems, selected paths and full closure.
+A separate fresh publisher imports only approved data; another fresh-store job
+uses **only exact-path `nix copy --from`**, signature checking and closure identity
+comparison. No builder fallback is possible through that command path.
+
+Trusted cache profiles are configured in reviewed `policy.json`:
+
+- `attic-existing` reuses `ATTIC_SERVER`, `ATTIC_CACHE`, `ATTIC_TOKEN`.
+- `cachix-existing` reuses `CACHIX_CACHE`, `CACHIX_AUTH_TOKEN`, optional
+  `CACHIX_SIGNING_KEY`.
+
+No URL/key is invented. The initial policy has no verified public keys and leaves
+publication **disabled**. Populate a profile from verified existing cache
+configuration and review it before enabling publication. Prefer a quarantine
+cache; signing an untrusted build is not a claim that its code is trustworthy.
+See [security and profile configuration](docs/security.md).
+
+The artifact contains `review-result.json`, `report.md`, `consume.md`, per-system
+effective locks/plans, NAR cache data, file digests and logs. Build, tests,
+publication and retrieval have separate outcomes. Cache publication/retrieval
+receipts are separate artifacts linked by the exact effective-plan and bundle
+digests; the original immutable build report is not rewritten after promotion.
+
+`repo-review fetch` reads a trusted local cache profile, validates the manifest,
+and copies exact paths into a **new** isolated store. It never evaluates a flake
+or builds. Standard cache keys are retained and approved keys appended. New keys
+grant trust to the cache operator to provide executable software. Unsigned local
+transfers are permitted only by `verify-local` into a disposable isolated store,
+or inside the fresh publisher after digest-bound approval; user fetch never uses
+`--no-check-sigs`. Fetch does not modify or activate NixOS/Home Manager.
+
+## Comments and browser shortcut
+
+Posting defaults off. `GH_TOKEN` is read only by the isolated report job; configure
+a narrowly scoped App installation token or fine-grained token authorized on the
+target repository. The workflow repository's `GITHUB_TOKEN` is not cross-repo
+authority. Without a report credential, the result says `posted: false` and emits
+the manual `gh pr comment --body-file` argv. Comments include the exact commit and
+run, are bounded, and are refused if head/base moved. No auto-approval or merge.
+
+Install `shortcut.user.js` and explicitly set
+`localStorage.setItem("repo-review-controller", "OWNER/CONTROLLER-REPOSITORY")`
+on GitHub. The shortcut supports arbitrary GitHub PR coordinates and prepares the
+same editable request. It neither assumes the controller's name nor dispatches
+without user interaction.
+
+## Legacy migration
+
+`review.yml` retains PR/platform inputs through the shared Rust adapter, with
+explicit merge mode. Defaults now select x86_64-linux only, no posting and no
+publication. `extra-args`, `upterm`, `push-to-cache=true`, non-`nothing` success
+actions and custom sandbox settings are rejected. `build.yml` now accepts the
+structured request rather than interpolating package strings. `EXTRA_NIX_CONFIG`,
+`BUILDERS`, `USE_BUILDERS`, `SSH_KEY`, `SSH_CERT` are not consumed. They are not
+deleted from repository settings. Self-update is manual PR-only integration,
+never unattended rebase/force-push. Conflicts stop for manual resolution.
+
+## Development
+
+```sh
+cargo test --locked
+cargo clippy --all-targets --locked -- -D warnings
+nix build .#repo-review
+nix run .#formatter.x86_64-linux -- --ci
+```
+
+Formatting runs through treefmt only. `check.yml` builds the Nix package (including
+Rust tests), checks workflows/schemas, and runs small conventional/external/failing
+fixtures plus isolated complete-closure transfer. No target cache credentials are
+used. No live upstream review is fabricated by fixture tests.

@@ -1,82 +1,32 @@
 name: flake-update
-
-permissions:
-  actions: write
-  contents: read
-  pull-requests: write
-
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * 1"
-
+permissions:
+  contents: write
+  pull-requests: write
 jobs:
-  update:
-    runs-on: ubuntu-latest
+  propose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - name: ensure upstream
-        run: |
-          if gh api "/repos/${GITHUB_REPOSITORY}" | jq -e .fork; then
-            echo "::error::This workflow should only run in the upstream repository. Disabling it in this fork, so you can ignore this run failure."
-            gh -R "$GITHUB_REPOSITORY" workflow disable "$GITHUB_WORKFLOW"
-            exit 1
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: ensure ssh key
-        run: |
-          if [[ -z "$FLAKE_UPDATE_SSH_KEY" ]]; then
-            echo "::error::FLAKE_UPDATE_SSH_KEY secret is not set. Please either set this secret or disable this workflow."
-            exit 1
-          fi
-        env:
-          FLAKE_UPDATE_SSH_KEY: ${{ secrets.FLAKE_UPDATE_SSH_KEY }}
-
-      - name: install nix
-        uses: cachix/install-nix-action@v31
-
-      - name: configure git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: clone repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ssh-key: ${{ secrets.FLAKE_UPDATE_SSH_KEY }}
-
-      - run: nix flake update --commit-lock-file
-
-      - name: push
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix
+      - name: Propose tool lock refresh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -exuo pipefail
-
-          git fetch origin HEAD:remotes/origin/HEAD
-          if git diff --quiet remotes/origin/HEAD; then
-            echo "::notice::All flake inputs are already up to date."
-              if git ls-remote origin refs/heads/flake-update | grep -q .; then
-              echo "::notice::Removing flake-update branch."
-              git push -d origin flake-update
-            fi
-            exit
-          fi
-
-          { echo '```' && git log -1 --format=%B | tail -n+3 && echo '```'; } > .pr_body
-
-          echo "::notice::Pushing to the flake-update branch."
-          git push -f origin HEAD:refs/heads/flake-update
-
-          url="$(gh api "/repos/${GITHUB_REPOSITORY}/pulls?state=open&head=${GITHUB_REPOSITORY_OWNER}:flake-update&per_page=1" --jq '.[].html_url')"
-          if [[ -n "$url" ]]; then
-            echo "::notice::PR for flake-update branch already exists: ${url}"
-          else
-            echo "::notice::Creating a new PR for the flake-update branch."
-            gh pr create -t 'chore: update flake.lock' -F .pr_body -H flake-update
-
-            # push again to trigger ci
-            git commit --amend --no-edit
-            git push -f origin HEAD:refs/heads/flake-update
-          fi
+          set -euo pipefail
+          branch="flake-update/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git switch -c "$branch"
+          nix flake update
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add flake.lock
+          git commit -m 'chore: propose pinned tool update'
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --head "$branch" --title 'Update pinned Nix tools' --body 'Requires normal checks and review. No auto-merge.'

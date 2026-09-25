@@ -1,98 +1,17 @@
 name: setup-nix
-
-inputs:
-  system:
-    type: string
-    required: true
-  sandbox:
-    type: string
-    default: "true"
-  extra-nix-config:
-    type: string
-    default: ""
-  builders:
-    type: string
-    default: ""
-  ssh-key:
-    type: string
-    default: ""
-  ssh-cert:
-    type: string
-    default: ""
-
+description: Pinned Nix bootstrap for disposable, secretless hosted runners
 runs:
   using: composite
   steps:
-    - name: reclaim space (linux)
-      if: runner.os == 'Linux'
-      uses: wimpysworld/nothing-but-nix@main
+    - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       with:
-        hatchet-protocol: rampage
-
-    - name: reclaim space (darwin)
-      if: runner.os == 'macOS'
-      shell: bash
-      run: |
-        echo "::group::disk space (before)"
-        sudo df -h
-        echo "::endgroup::"
-
-        echo "::group::disable mds"
-        sudo mdutil -i off -a || echo "mdutil failed"
-        sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist \
-         || echo "launchctl unload failed"
-        echo "::endgroup::"
-
-        echo "Background space expansion started. /nix will grow as space becomes available."
-        sudo rm -rf \
-          /Applications/Xcode_* \
-          /Library/Developer/CoreSimulator \
-          /Library/Frameworks \
-          /Users/runner/.dotnet \
-          /Users/runner/.rustup \
-          /Users/runner/Library/Android \
-          /Users/runner/Library/Caches \
-          /Users/runner/Library/Developer/CoreSimulator \
-          /Users/runner/hostedtoolcache &
-
-    - name: prepare remote builder config
-      if: ${{ inputs.builders != '' && inputs.ssh-key != '' }}
-      env:
-        BUILDERS: ${{ inputs.builders }}
-        SSH_KEY: ${{ inputs.ssh-key }}
-        SSH_CERT: ${{ inputs.ssh-cert }}
-      shell: bash
-      run: |
-        set -euo pipefail
-        sudo mkdir -p /etc/nix/
-        echo -e "$BUILDERS" | sudo tee /etc/nix/machines
-        echo -e "$SSH_KEY" | sudo tee /etc/nix/ssh_id > /dev/null
-        echo -e "$SSH_CERT" | sudo tee /etc/nix/ssh_id-cert.pub > /dev/null
-        sudo chmod 400 /etc/nix/ssh_id{,-cert.pub}
-
-    - name: install nix
-      uses: cachix/install-nix-action@v31
-      with:
-        # Putting build-dir in /nix is a workaround for https://github.com/wimpysworld/nothing-but-nix/issues/18
+        install_url: https://releases.nixos.org/nix/nix-2.34.8/install
         extra_nix_config: |
-          accept-flake-config = true
-          build-dir = /nix/build
-          builders = @/etc/nix/machines
-          builders-use-substitutes = true
-          sandbox = ${{ inputs.sandbox }}
-          system = ${{ inputs.system }}
-          ${{ inputs.extra-nix-config }}
-
-    - name: create build-dir
-      shell: bash
-      run: sudo mkdir -p /nix/build
-
-    - name: post setup-nix
-      if: runner.os == 'macOS'
-      uses: srz-zumix/post-run-action@v3
-      with:
-        shell: bash -e {0}
-        post-run: |
-          echo "::group::disk space (after)"
-          sudo df -h
-          echo "::endgroup::"
+          accept-flake-config = false
+          allow-import-from-derivation = false
+          builders =
+          max-jobs = 2
+          cores = 2
+          timeout = 1800
+          max-silent-time = 600
+          sandbox = ${{ runner.os == 'macOS' && 'relaxed' || 'true' }}

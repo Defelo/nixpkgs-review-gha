@@ -1,33 +1,45 @@
 name: check
-
 on:
   push:
-    branches: [main]
+    branches: [main, feat/repository-review-service]
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
   check:
-    strategy:
-      fail-fast: false
-      matrix:
-        system:
-          - x86_64-linux
-          - aarch64-linux
-          - x86_64-darwin
-          - aarch64-darwin
-    runs-on: >-
-      ${{ (matrix.system == 'x86_64-linux' && 'ubuntu-latest')
-      || (matrix.system == 'aarch64-linux' && 'ubuntu-24.04-arm')
-      || (matrix.system == 'x86_64-darwin' && 'macos-latest')
-      || (matrix.system == 'aarch64-darwin' && 'macos-latest') }}
-
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
-      - name: setup nix
-        uses: ./.github/actions/setup-nix
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          system: ${{ matrix.system }}
-      - run: nix flake check -L --keep-going
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix
+      - name: Build CLI and run Rust tests with locked tools
+        run: nix build .#repo-review --out-link tools --no-update-lock-file -L
+      - name: Format and workflow validation
+        run: |
+          nix run .#formatter.x86_64-linux -- --ci
+          nix shell .#actionlint --command actionlint
+      - name: Generated contracts must match Rust types
+        run: |
+          tools/bin/repo-review schema request > schemas/request.json
+          tools/bin/repo-review schema plan > schemas/plan.json
+          tools/bin/repo-review schema platform-result > schemas/platform-result.json
+          tools/bin/repo-review schema result > schemas/result.json
+          tools/bin/repo-review example > examples/request.json
+          git diff --exit-code -- schemas examples/request.json
+      - name: Secretless exact-revision fixtures and isolated closure transfer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tests/ci-fixtures.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: fixture-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            fixture-evidence/*-plan.json
+            fixture-evidence/*/review-result.json
+            fixture-evidence/*/*.log
+            fixture-evidence/*/effective.lock
+            fixture-evidence/*/effective-plan.json
+          if-no-files-found: warn

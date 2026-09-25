@@ -1,0 +1,147 @@
+name: publish-review
+run-name: Publish approved plan ${{ inputs.plan_digest }}
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Completed review-repository run
+        type: string
+        required: true
+      attempt:
+        description: Exact source run attempt
+        type: string
+        required: true
+      revision:
+        description: Reviewed controller SHA used by that run
+        type: string
+        required: true
+      system:
+        type: choice
+        options: [x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin]
+        required: true
+      plan_digest:
+        description: Approved effective-plan SHA256 from validated report
+        type: string
+        required: true
+      bundle_digest:
+        description: Approved bundle SHA256 from validated report
+        type: string
+        required: true
+permissions: {}
+env:
+  SOURCE_RUN: ${{ inputs.run_id }}
+  SOURCE_ATTEMPT: ${{ inputs.attempt }}
+  SOURCE_REVISION: ${{ inputs.revision }}
+  APPROVED_PLAN: ${{ inputs.plan_digest }}
+  APPROVED_BUNDLE: ${{ inputs.bundle_digest }}
+jobs:
+  authorize:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-nix
+      - run: nix build .#repo-review --out-link tools --no-update-lock-file
+      - name: Validate reviewed revision, exact workflow/run/attempt and both actors
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.triggering_actor }}
+        run: |
+          tools/bin/repo-review verify-run --controller "$GITHUB_REPOSITORY" --run "$SOURCE_RUN" --attempt "$SOURCE_ATTEMPT" --revision "$SOURCE_REVISION" > source-run.json
+          git merge-base --is-ancestor "$SOURCE_REVISION" HEAD
+          gh api "repos/$GITHUB_REPOSITORY/collaborators/$ACTOR/permission" --jq .permission | grep -Ex 'admin|maintain|write'
+          jq -e '.publication_enabled == true' policy.json
+  publish:
+    needs: authorize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # The explicit dispatch is approval of the exact digests; optional environment
+    # protection can add a second reviewer without replacing that digest binding.
+    environment: review-publication
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix
+      - run: nix build .#repo-review --out-link tools --no-update-lock-file
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          name: metadata-${{ inputs.run_id }}-${{ inputs.attempt }}
+          path: metadata
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          name: platform-${{ inputs.system }}-${{ inputs.run_id }}-${{ inputs.attempt }}
+          path: bundle
+      - name: Revalidate origin and bundle before exposing cache credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tools/bin/repo-review verify-run --controller "$GITHUB_REPOSITORY" --run "$SOURCE_RUN" --attempt "$SOURCE_ATTEMPT" --revision "$SOURCE_REVISION"
+          tools/bin/repo-review validate-report --plan metadata/plan.json --bundle bundle > validated.json
+          test "$(jq -r .effective_plan_digest validated.json)" = "$APPROVED_PLAN"
+          test "$(jq -r .bundle_digest validated.json)" = "$APPROVED_BUNDLE"
+          test "$(jq -r .run_id metadata/plan.json)" = "$SOURCE_RUN"
+          test "$(jq -r .run_attempt metadata/plan.json)" = "$SOURCE_ATTEMPT"
+          test "$(jq -r .controller.commit metadata/plan.json)" = "$SOURCE_REVISION"
+          test "$(jq -r .controller.repository metadata/plan.json)" = "$GITHUB_REPOSITORY"
+      - name: Publish validated exact closures (no target evaluation)
+        env:
+          ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
+          ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
+        run: tools/bin/repo-review publish --plan metadata/plan.json --bundle bundle --policy policy.json --approved-plan "$APPROVED_PLAN" --approved-bundle "$APPROVED_BUNDLE" > publication.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: publication.json
+          if-no-files-found: error
+  verify:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix
+      - run: nix build .#repo-review --out-link tools --no-update-lock-file
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          name: platform-${{ inputs.system }}-${{ inputs.run_id }}-${{ inputs.attempt }}
+          path: bundle
+      - name: Exact closure retrieval into a new store, never build
+        run: |
+          PROFILE=$(jq -r .plan.request.cache_profile bundle/review-result.json)
+          tools/bin/repo-review fetch --result bundle/review-result.json --policy policy.json --profile "$PROFILE" --destination "$RUNNER_TEMP/fresh-consumer-store" > retrieval.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: retrieval-${{ github.run_id }}-${{ github.run_attempt }}
+          path: retrieval.json
+          if-no-files-found: error

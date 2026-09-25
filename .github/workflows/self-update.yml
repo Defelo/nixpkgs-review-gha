@@ -1,57 +1,32 @@
 name: self-update
-
-permissions:
-  actions: write
-
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * *"
-
+permissions:
+  contents: write
+  pull-requests: write
 jobs:
-  update:
-    runs-on: ubuntu-latest
+  propose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: ensure token
-        run: |
-          if [[ -z "$GH_SELF_UPDATE_TOKEN" ]]; then
-            echo "::error::GH_SELF_UPDATE_TOKEN secret is not set. Disabling this workflow for now. If you want your fork to update itself automatically, please set this secret and re-enable this workflow."
-            gh -R "$GITHUB_REPOSITORY" workflow disable "$GITHUB_WORKFLOW"
-            exit 1
-          fi
-        env:
-          GH_SELF_UPDATE_TOKEN: ${{ secrets.GH_SELF_UPDATE_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
-
-      - name: get upstream repo
-        id: upstream
-        run: |
-          upstream="$(gh api /repos/"$REPO" | jq -er .parent.clone_url)"
-          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-
-      - name: configure git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: clone repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          token: ${{ secrets.GH_SELF_UPDATE_TOKEN }}
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
-
-      - name: add upstream remote
-        run: |
-          git remote add upstream "$UPSTREAM"
-          git fetch upstream HEAD:upstream/HEAD
+          persist-credentials: false
+      - name: Propose a non-rewriting upstream integration
         env:
-          UPSTREAM: ${{ steps.upstream.outputs.upstream }}
-
-      - name: rebase
-        run: git rebase upstream/HEAD
-
-      - name: push
-        run: git push --force-with-lease
+          GH_TOKEN: ${{ secrets.GH_SELF_UPDATE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          upstream=$(gh api "repos/$GITHUB_REPOSITORY" --jq .parent.full_name)
+          [[ "$upstream" =~ ^[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+$ ]]
+          branch="upstream-sync/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git fetch "https://github.com/$upstream.git" HEAD
+          git merge --no-edit FETCH_HEAD
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --head "$branch" --title 'Integrate upstream (review custom service policy before merging)' --body 'Non-rewriting upstream merge. Normal checks and human review required; conflicts fail this job for manual resolution. No auto-merge.'

@@ -1,0 +1,194 @@
+name: review-repository
+run-name: repository review by ${{ github.actor }}
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: Version 1 repo-review request JSON
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      request:
+        type: string
+        required: true
+    outputs:
+      plan_digest:
+        value: ${{ jobs.resolve.outputs.digest }}
+permissions: {}
+jobs:
+  controller:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    outputs:
+      repository: ${{ steps.identity.outputs.repository }}
+      revision: ${{ steps.identity.outputs.revision }}
+    steps:
+      # No checkout before this step. For workflow_call, github.* describes the caller.
+      # The token is obtained directly over GitHub's authenticated TLS endpoint, not
+      # accepted from an input/artifact. job_workflow_* identifies this called workflow.
+      - id: identity
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          (async () => {
+            const response = await fetch(process.env.ACTIONS_ID_TOKEN_REQUEST_URL + '&audience=repo-review-controller', {
+              headers: {Authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}`}
+            });
+            if (!response.ok) throw new Error('OIDC identity unavailable');
+            const {value} = await response.json();
+            const claims = JSON.parse(Buffer.from(value.split('.')[1], 'base64url'));
+            if (claims.iss !== 'https://token.actions.githubusercontent.com' || claims.aud !== 'repo-review-controller') throw new Error('wrong identity');
+            const ref = claims.job_workflow_ref || claims.workflow_ref;
+            const sha = claims.job_workflow_sha || claims.workflow_sha;
+            const match = /^([A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+)\/\.github\/workflows\/review-repository.yml@(.+)$/.exec(ref);
+            if (!match || !/^[a-f0-9]{40}$/.test(sha)) throw new Error('invalid workflow identity');
+            if (claims.job_workflow_ref && match[2] !== sha && !(match[1] === claims.repository && sha === claims.workflow_sha)) throw new Error('external workflow_call must pin a full reviewed SHA');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `repository=${match[1]}\nrevision=${sha}\n`);
+          })().catch(error => { console.error(error.message); process.exit(1); });
+          NODE
+  resolve:
+    needs: controller
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.plan.outputs.digest }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ needs.controller.outputs.repository }}
+          ref: ${{ needs.controller.outputs.revision }}
+          path: controller
+          persist-credentials: false
+      - uses: ./controller/.github/actions/setup-nix
+      - run: nix build ./controller#repo-review --out-link tools --no-update-lock-file
+      - id: plan
+        env:
+          REQUEST: ${{ inputs.request }}
+          CONTROLLER: ${{ needs.controller.outputs.repository }}
+          REVISION: ${{ needs.controller.outputs.revision }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$REQUEST" | tools/bin/repo-review plan --controller "$CONTROLLER" --revision "$REVISION" --root controller --output plan.json > plan-summary.json
+          jq -r '"digest=" + .digest, "matrix=" + (.matrix | tojson)' plan-summary.json >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: metadata-${{ github.run_id }}-${{ github.run_attempt }}
+          path: plan.json
+          if-no-files-found: error
+          retention-days: 14
+  build:
+    needs: [controller, resolve]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.resolve.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ needs.controller.outputs.repository }}
+          ref: ${{ needs.controller.outputs.revision }}
+          path: controller
+          persist-credentials: false
+      - uses: ./controller/.github/actions/setup-nix
+      - run: nix build ./controller#repo-review --out-link tools --no-update-lock-file
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: metadata-${{ github.run_id }}-${{ github.run_attempt }}
+          path: metadata
+      - name: Evaluate, freeze effective plan, build, test, export runtime closures
+        env:
+          SYSTEM: ${{ matrix.system }}
+          PLAN_DIGEST: ${{ needs.resolve.outputs.digest }}
+        run: |
+          test "$(jq -r .digest metadata/plan.json)" = "$PLAN_DIGEST"
+          tools/bin/repo-review build --plan metadata/plan.json --system "$SYSTEM" --output "$PWD/platform"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: platform-${{ matrix.system }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: platform/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+  collect:
+    if: ${{ always() && needs.resolve.result == 'success' }}
+    needs: [controller, resolve, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ needs.controller.outputs.repository }}
+          ref: ${{ needs.controller.outputs.revision }}
+          path: controller
+          persist-credentials: false
+      - uses: ./controller/.github/actions/setup-nix
+      - run: nix build ./controller#repo-review --out-link tools --no-update-lock-file
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: metadata-${{ github.run_id }}-${{ github.run_attempt }}
+          path: metadata
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: platform-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: incoming
+      - env:
+          PLAN_DIGEST: ${{ needs.resolve.outputs.digest }}
+        run: tools/bin/repo-review collect --plan metadata/plan.json --expected-digest "$PLAN_DIGEST" --inputs incoming --output review
+      - if: ${{ always() }}
+        run: cat review/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: review/
+          if-no-files-found: error
+          retention-days: 14
+  report:
+    needs: [controller, resolve, collect]
+    if: ${{ always() && needs.collect.result != 'skipped' && needs.controller.outputs.repository == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ needs.controller.outputs.repository }}
+          ref: ${{ needs.controller.outputs.revision }}
+          path: controller
+          persist-credentials: false
+      - uses: ./controller/.github/actions/setup-nix
+      - run: nix build ./controller#repo-review --out-link tools --no-update-lock-file
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: review
+      - name: Optional exact-head comment (report-only credential)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PLAN_DIGEST: ${{ needs.resolve.outputs.digest }}
+        run: |
+          if jq -e '.plan.request.post_result' review/review-result.json > /dev/null; then
+            tools/bin/repo-review post --result review/review-result.json --expected-plan-digest "$PLAN_DIGEST" --output comment.md > posting.json
+          else
+            printf '%s\n' '{"posted":false,"outcome":"not_run"}' > posting.json
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ always() }}
+        with:
+          name: posting-${{ github.run_id }}-${{ github.run_attempt }}
+          path: posting.json
+          if-no-files-found: error
