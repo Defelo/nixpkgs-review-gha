@@ -45,10 +45,12 @@ export def "gha review-inputs" [] {
   $env.INPUTS
   | from json
   | upsert extra-args { default "" }
+  | upsert allow-unfree { default "false" }
   | update cells -c [
     x86_64-linux
     aarch64-linux
     riscv64-linux
+    allow-unfree
     push-to-cache
     upterm
     post-result
