@@ -10,7 +10,8 @@ the protocol/build clients, pinned through `flake.lock`.
 **Activation status:** implementation requires a reviewed default-branch merge
 before `review-repository.yml` can be dispatched normally. A PR or YAML file is
 not evidence of a running service. See [activation](docs/activation.md),
-[inspection](docs/inspection.md), and generated `review-service.json`.
+[inspection](docs/inspection.md), [verification](docs/verification.md), and
+generated `review-service.json`.
 
 ## Backends
 
@@ -56,7 +57,8 @@ is deliberately invalid until Prompt 02 supplies real source and recipe commits.
 
 Commands emit JSON. Exit codes: `0` completed/passed (a status query may describe
 a still-running run), `2` invalid/blocked/tool error, `3` failed build/aggregate,
-`4` unsupported backend/target. Status polling is bounded to 300 seconds. Dispatch
+`4` unsupported backend/target. A closure-export failure returns `3` while retaining
+the actual build/test outcomes. Status polling is bounded to 300 seconds. Dispatch
 prints the request identity and run-list command; use the returned GitHub run ID
 and attempt for later invocations. There is no background daemon.
 
@@ -103,7 +105,9 @@ Publication defaults to `none`. `request-approval` records a pending gate; it
 does not grant cache access. An authorized operator dispatches
 `publish-review.yml` on the default branch with the exact source run, attempt,
 controller SHA, system, effective-plan digest and bundle digest. The service
-verifies source workflow identity, authorized actors, reviewed ancestry,
+verifies successful source-run and per-platform job conclusions for the exact
+attempt, complete collected platform results, workflow identity, authorized
+actors, reviewed ancestry,
 schemas, file hashes, source identities, systems, selected paths and full closure.
 A separate fresh publisher imports only approved data; another fresh-store job
 uses **only exact-path `nix copy --from`**, signature checking and closure identity
@@ -122,14 +126,16 @@ cache; signing an untrusted build is not a claim that its code is trustworthy.
 See [security and profile configuration](docs/security.md).
 
 The artifact contains `review-result.json`, `report.md`, `consume.md`, per-system
-effective locks/plans, NAR cache data, file digests and logs. Build, tests,
+effective locks/plans, NAR cache data, file digests and logs. Build, tests, closure export,
 publication and retrieval have separate outcomes. Cache publication/retrieval
 receipts are separate artifacts linked by the exact effective-plan and bundle
 digests; the original immutable build report is not rewritten after promotion.
 
 `repo-review fetch` reads a trusted local cache profile, validates the manifest,
 and copies exact paths into a **new** isolated store. It never evaluates a flake
-or builds. Standard cache keys are retained and approved keys appended. New keys
+or builds. Signature checking is explicitly enabled even when the consumer's
+configuration has `require-sigs = false`. Standard cache keys are retained and
+approved keys appended. New keys
 grant trust to the cache operator to provide executable software. Unsigned local
 transfers are permitted only by `verify-local` into a disposable isolated store,
 or inside the fresh publisher after digest-bound approval; user fetch never uses
@@ -172,5 +178,10 @@ nix run .#formatter.x86_64-linux -- --ci
 
 Formatting runs through treefmt only. `check.yml` builds the Nix package (including
 Rust tests), checks workflows/schemas, and runs small conventional/external/failing
-fixtures plus isolated complete-closure transfer. No target cache credentials are
+fixtures plus isolated complete-closure transfer. The pinned Python check exercises
+real upstream change detection with recorded head/merge/no-change inputs. CI also
+runs the otherwise ignored `tests/retrieval.rs` tests against the exported closure:
+actual cache miss, unsigned rejection, wrong-key rejection, and signed exact-copy
+success, including a consumer configured with `require-sigs = false`. No target
+cache credentials are
 used. No live upstream review is fabricated by fixture tests.

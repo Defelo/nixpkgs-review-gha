@@ -1,0 +1,29 @@
+{
+  "activation_gates": [
+    "Implementation PR must be reviewed and merged, not auto-merged",
+    "Workflow must be registered on default branch",
+    "Run bounded generic live acceptance and inspect evidence",
+    "Approve exact cache URL/public keys in policy.json before enabling publication",
+    "Approve each external recipe pin in policy.json",
+    "Run separate digest-bound promotion and fresh-cache retrieval acceptance"
+  ],
+  "backends": {
+    "external-flake": "implemented; recipe allowlist required",
+    "flake": "implemented",
+    "nixpkgs": "pinned nixpkgs-review 3.7.0 selection adapter; no fabricated live acceptance"
+  },
+  "cache_profile_names": ["attic-existing", "cachix-existing"],
+  "cli": "repo-review",
+  "configured_cache_profiles": {},
+  "controller_revision": "0702bbb1319d68cf0fea88df1207606e336eb9d4",
+  "flake_outputs": ["packages.SYSTEM.repo-review", "apps.SYSTEM.repo-review"],
+  "live_acceptance_system": "x86_64-linux",
+  "plan_schema_version": 1,
+  "ready": false,
+  "repository": "caniko/nixpkgs-review-gha",
+  "request_schema_version": 1,
+  "result_schema_version": 1,
+  "schema_version": 1,
+  "systems": ["x86_64-linux", "aarch64-linux", "x86_64-darwin", "aarch64-darwin"],
+  "workflow_path": ".github/workflows/review-repository.yml"
+}
