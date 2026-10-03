@@ -31,7 +31,7 @@
       packages = eachSystem (
         pkgs:
         let
-          reviewPython = pkgs.python3.withPackages (_: [ pkgs.nixpkgs-review ]);
+          reviewPython = pkgs.python3.withPackages (ps: [ (ps.toPythonModule pkgs.nixpkgs-review) ]);
           selector = pkgs.writeShellScriptBin "repo-review-nixpkgs-select" ''
             exec ${reviewPython}/bin/python ${./adapters/nixpkgs.py} "$@"
           '';
@@ -60,6 +60,7 @@
             meta.mainProgram = "repo-review";
           };
           default = repo-review;
+          nixpkgs-selector = selector;
         }
       );
 
@@ -83,6 +84,11 @@
       checks = eachSystem (pkgs: {
         inherit (pkgs) nixpkgs-review;
         inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) repo-review;
+        nixpkgs-selector = pkgs.runCommand "nixpkgs-selector-import-check" { } ''
+          ${
+            self.packages.${pkgs.stdenv.hostPlatform.system}.nixpkgs-selector
+          }/bin/repo-review-nixpkgs-select --self-test > $out
+        '';
         fmt = pkgs.runCommand "fmt-check" { } ''
           cp -r --no-preserve=mode ${self} repo
           ${lib.getExe self.formatter.${pkgs.stdenv.hostPlatform.system}} -C repo --ci

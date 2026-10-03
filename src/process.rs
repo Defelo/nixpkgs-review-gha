@@ -41,7 +41,11 @@ pub fn run(
     cwd: Option<&Path>,
     log: Option<&Path>,
 ) -> Result<String> {
-    let mut c = command(program, args, cwd);
+    run_command(command(program, args, cwd), log)
+}
+
+pub fn run_command(mut c: Command, log: Option<&Path>) -> Result<String> {
+    let program = c.get_program().to_string_lossy().into_owned();
     let mut stdout = tempfile::tempfile()?;
     let stderr = if let Some(p) = log {
         File::create(p)?

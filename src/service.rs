@@ -2,7 +2,7 @@ use crate::{
     artifact, canonical_digest,
     contract::*,
     github,
-    process::{args, run},
+    process::{args, command, run, run_command},
     read_json, write_json,
 };
 use anyhow::{Result, ensure};
@@ -336,24 +336,15 @@ pub fn publish(
         );
         let token = std::env::var("ATTIC_TOKEN")?;
         ensure!(!token.is_empty(), "missing Attic credentials");
-        // Private config, not argv or logs. Never shell out to attic login.
-        let config = isolated.path().join("attic.toml");
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut f = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&config)?;
-        writeln!(
-            f,
-            "default-server = \"review\"\n[servers.review]\nendpoint = {}\ntoken = {}",
-            serde_json::to_string(c.server.as_ref().unwrap_or(&String::new()))?,
-            serde_json::to_string(&token)?
+        run_command(
+            attic_command(
+                &c,
+                &token,
+                &isolated.path().join("config"),
+                &artifact::roots(r),
+            )?,
+            None,
         )?;
-        let mut a = args(&["--config", config.to_str().unwrap_or(""), "push", &c.cache]);
-        a.extend(artifact::roots(r));
-        run("attic", &a, None, None)?;
     } else {
         ensure!(
             std::env::var("CACHIX_CACHE").ok().as_deref() == Some(&c.cache),
@@ -370,12 +361,51 @@ pub fn publish(
         {
             cmd.env("CACHIX_SIGNING_KEY", k);
         }
-        let output = cmd.output()?;
-        ensure!(output.status.success(), "Cachix publication failed");
+        run_command(cmd, None)?;
     }
     Ok(
         json!({"schema_version":VERSION,"publication":"passed","retrieval":"not_run","effective_plan_digest":approved_plan,"bundle_digest":approved_bundle,"cache_url":c.url,"public_keys":c.public_keys}),
     )
+}
+
+/// The pinned Attic reads only XDG_CONFIG_HOME/attic/config.toml; no --config flag.
+pub fn attic_command(
+    c: &CacheProfile,
+    token: &str,
+    home: &Path,
+    roots: &[String],
+) -> Result<std::process::Command> {
+    use std::io::Write;
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+    ensure!(
+        !token.is_empty() && !roots.is_empty(),
+        "missing Attic token or roots"
+    );
+    for root in roots {
+        artifact::store_path(root)?;
+    }
+    let server = c
+        .server
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("missing Attic endpoint"))?;
+    fs::DirBuilder::new().mode(0o700).create(home)?;
+    fs::create_dir(home.join("attic"))?;
+    let mut f = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(home.join("attic/config.toml"))?;
+    writeln!(
+        f,
+        "default-server = \"review\"\n[servers.review]\nendpoint = {}\ntoken = {}",
+        serde_json::to_string(server)?,
+        serde_json::to_string(token)?
+    )?;
+    let mut a = args(&["push", &format!("review:{}", c.cache)]);
+    a.extend_from_slice(roots);
+    let mut cmd = command("attic", &a, None);
+    cmd.env("XDG_CONFIG_HOME", home);
+    Ok(cmd)
 }
 pub fn manifest(root: &Path, repo: &str, rev: &str) -> Result<Value> {
     repository(repo)?;

@@ -521,8 +521,34 @@ pub fn retrieve(
         public_url(cache_url)?;
         ensure!(!keys.is_empty(), "approved public keys required");
     }
+    let mut a = retrieval_args(cache_url, keys, destination, local_transfer);
+    a.extend(roots.clone());
+    run("nix", &a, None, None)?;
     let store = format!("local?root={}", destination.display());
-    let mut a = nix_args(&["copy", "--from", cache_url, "--to", &store]);
+    ensure!(
+        closure_info(&roots, Some(&store))? == r.closure,
+        "retrieved closure identity mismatch"
+    );
+    Ok(())
+}
+
+pub fn retrieval_args(
+    cache_url: &str,
+    keys: &[String],
+    destination: &Path,
+    local_transfer: bool,
+) -> Vec<String> {
+    let store = format!("local?root={}&require-sigs=true", destination.display());
+    let mut a = nix_args(&[
+        "copy",
+        "--from",
+        cache_url,
+        "--to",
+        &store,
+        "--option",
+        "require-sigs",
+        "true",
+    ]);
     if local_transfer {
         a.push("--no-check-sigs".into());
     } else {
@@ -532,11 +558,5 @@ pub fn retrieve(
             keys.join(" "),
         ]);
     }
-    a.extend(roots.clone());
-    run("nix", &a, None, None)?;
-    ensure!(
-        closure_info(&roots, Some(&store))? == r.closure,
-        "retrieved closure identity mismatch"
-    );
-    Ok(())
+    a
 }

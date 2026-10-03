@@ -16,6 +16,10 @@ jobs:
       - uses: ./.github/actions/setup-nix
       - name: Build CLI and run Rust tests with locked tools
         run: nix build .#repo-review --out-link tools --no-update-lock-file -L
+      - name: Check pinned Nixpkgs adapter imports and Attic CLI compatibility
+        run: |
+          nix build .#checks.x86_64-linux.nixpkgs-selector --no-link --no-update-lock-file -L
+          nix shell .#attic-client --command attic push --help
       - name: Format and workflow validation
         run: |
           nix run .#formatter.x86_64-linux -- --ci

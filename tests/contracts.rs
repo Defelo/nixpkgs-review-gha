@@ -394,6 +394,68 @@ fn command_arguments_remain_separate_and_secrets_scrubbed() {
     assert!(!a.contains(&"--no-check-sigs".into()));
 }
 #[test]
+fn public_retrieval_enforces_signatures_without_building() {
+    let a = retrieval_args(
+        "https://cache.example",
+        &["review:KEY".into()],
+        std::path::Path::new("/fresh"),
+        false,
+    );
+    assert!(a.iter().any(|v| v == "local?root=/fresh&require-sigs=true"));
+    assert!(
+        a.windows(3)
+            .any(|v| v == ["--option", "require-sigs", "true"])
+    );
+    assert!(
+        a.windows(3)
+            .any(|v| v == ["--option", "extra-trusted-public-keys", "review:KEY"])
+    );
+    assert!(!a.iter().any(|v| {
+        [
+            "build",
+            "eval",
+            "realise",
+            "--no-check-sigs",
+            "trusted-public-keys",
+        ]
+        .contains(&v.as_str())
+    }));
+}
+
+#[test]
+fn attic_uses_private_xdg_configuration_and_supported_argv() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("config");
+    let c = CacheProfile {
+        kind: "attic".into(),
+        server: Some("https://attic.example/".into()),
+        cache: "existing-cache".into(),
+        url: "https://attic.example/existing-cache".into(),
+        public_keys: vec![],
+    };
+    let cmd = attic_command(&c, "TEST_PRIVATE_TOKEN", &home, &[ROOT.into()]).unwrap();
+    assert_eq!(
+        cmd.get_args().collect::<Vec<_>>(),
+        vec!["push", "review:existing-cache", ROOT]
+    );
+    assert!(
+        cmd.get_envs()
+            .any(|(k, v)| k == "XDG_CONFIG_HOME" && v == Some(home.as_os_str()))
+    );
+    assert!(!format!("{cmd:?}").contains("TEST_PRIVATE_TOKEN"));
+    let config = home.join("attic/config.toml");
+    assert_eq!(
+        std::fs::metadata(&config).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert!(
+        std::fs::read_to_string(config)
+            .unwrap()
+            .contains("token = \"TEST_PRIVATE_TOKEN\"")
+    );
+}
+#[test]
 fn external_lock_requires_direct_nonflake_exact_source() {
     let mut p = plan();
     p.request.backend = Backend::ExternalFlake;

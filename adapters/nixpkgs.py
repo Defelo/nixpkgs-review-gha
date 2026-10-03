@@ -43,6 +43,9 @@ class SelectOnly(Review):
 
 if version("nixpkgs-review") != "3.7.0":
     raise RuntimeError("unsupported nixpkgs-review API version; review adapter before updating tool lock")
+if sys.argv[1:] == ["--self-test"]:
+    print(json.dumps({"backend_version": version("nixpkgs-review"), "imports": "passed"}))
+    sys.exit(0)
 plan = json.loads(Path(sys.argv[1]).read_text())
 selected_system = sys.argv[2]
 output = Path(sys.argv[3])
