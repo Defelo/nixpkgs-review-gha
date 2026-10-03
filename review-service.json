@@ -15,7 +15,7 @@
   "cache_profile_names": ["attic-existing", "cachix-existing"],
   "cli": "repo-review",
   "configured_cache_profiles": {},
-  "controller_revision": "0702bbb1319d68cf0fea88df1207606e336eb9d4",
+  "controller_revision": "2d7dadf9382d3007ef01ee9d66f8636e9209ab52",
   "flake_outputs": ["packages.SYSTEM.repo-review", "apps.SYSTEM.repo-review"],
   "live_acceptance_system": "x86_64-linux",
   "plan_schema_version": 1,

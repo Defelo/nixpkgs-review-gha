@@ -13,7 +13,7 @@ Infrastructure PR: <https://github.com/caniko/nixpkgs-review-gha/pull/1>
 | Consumer `require-sigs = false` could disable verification | Enable signatures explicitly on the command and destination store; append reviewed keys | Argument regression plus real unsigned/wrong-key rejection and signed exact-copy success under an unsafe consumer configuration |
 | Recorded report helper and cache-miss fixture did not exercise production boundaries | Replace unused report validator with actual selection/bundle coverage; validate the bundle before retrieving from a separate empty cache | Missing/tampered no-change selection evidence and actual Nix copy failure |
 
-## Evidence
+## Pre-migration evidence
 
 - Local `cargo test --locked`: 19 passing contract/CLI tests. The two real-Nix
   retrieval tests are explicitly CI-only and excluded from the ordinary local run.
@@ -30,6 +30,43 @@ Infrastructure PR: <https://github.com/caniko/nixpkgs-review-gha/pull/1>
 Nix evaluation, packaging, builds, and closure checks run in GitHub CI only, as
 requested. Fixture signature keys are ephemeral and used only for offline
 file-cache checks; they are unrelated to the existing production cache policy.
+
+## Simit consolidation
+
+Engine migration PR: <https://github.com/caniko/simit/pull/31>.
+
+The controller now pins Simit `fb0d92f12226e4191b94e9c026f5852f913f3db4`
+with its exact CI-generated content hash, preserving Nixpkgs
+`13043924aaa7375ce482ebe2494338e058282925`. Engine code, adapter, and Rust tests
+are owned by Simit; the controller owns policy, compatibility, and activation.
+
+- The full local Simit suite passed: 602 tests, with the two actual Nix retrieval
+  tests reserved for CI. Clippy with `-D warnings` passed.
+- [Pinned package and compatibility CI](https://github.com/caniko/simit/actions/runs/37119766189)
+  passed the full packaged tests, real pinned selection adapter, engine/lock
+  identity check, runtime asset packaging, and Linux/Windows Rust 1.85 gates.
+  Its `controller-lock` artifact is the deployment lock receipt.
+- [Full Simit CI](https://github.com/caniko/simit/actions/runs/37119768540)
+  passed flake, formatter, tests, generated-file, documentation, Clippy and crate
+  packaging checks after incorporating the newly merged CI-feature work.
+- Local controller generation/drift checks, all four v1 schema comparisons,
+  actionlint, Python syntax and whitespace checks passed.
+- [Controller conversion CI](https://github.com/caniko/nixpkgs-review-gha/actions/runs/37120168358)
+  passed at `2d7dadf9382d3007ef01ee9d66f8636e9209ab52`: pinned package,
+  generated-file drift, adapter, formatter/workflow/schema checks,
+  conventional/external/failing fixtures, full runtime-closure transfer, actual
+  cache misses and signature enforcement. Both actual retrieval tests ran with
+  `2 passed; 0 ignored`.
+- Downloaded artifacts confirm the exact controller and Simit pins. Conventional
+  and external fixtures report `build`, `tests`, and `closure_export` as `passed`;
+  the deliberate failure reports failed build/tests and no closure export.
+  All fixtures retain `publication: not_run` and `retrieval: not_run`; isolated
+  transfer tests are evidence, not production-cache acceptance.
+
+The external fixture recipe is now explicitly pinned in policy. There is no
+controller-fixture policy exemption. `ATTIC_SERVER`, `ATTIC_CACHE`, and
+`ATTIC_TOKEN` retain their names, without granting review publication authority
+from ordinary Simit prebuild/release configuration.
 
 ## Readiness boundary
 
