@@ -108,6 +108,8 @@ enum Cmd {
         #[arg(long)]
         plan: PathBuf,
         #[arg(long)]
+        review: PathBuf,
+        #[arg(long)]
         bundle: PathBuf,
         #[arg(long)]
         policy: PathBuf,
@@ -117,6 +119,8 @@ enum Cmd {
         approved_bundle: String,
     },
     VerifyRun {
+        #[arg(long)]
+        plan: Option<PathBuf>,
         #[arg(long)]
         controller: String,
         #[arg(long)]
@@ -277,6 +281,7 @@ fn execute(cli: Cli) -> Result<(Value, i32)> {
         }
         Cmd::Publish {
             plan,
+            review,
             bundle,
             policy,
             approved_plan,
@@ -284,14 +289,26 @@ fn execute(cli: Cli) -> Result<(Value, i32)> {
         } => {
             let p: Plan = read_json(&plan)?;
             let r: PlatformResult = read_json(&bundle.join("review-result.json"))?;
-            service::publish(&p, &r, &bundle, &policy, &approved_plan, &approved_bundle)?
+            service::publish(
+                &p,
+                &read_json(&review)?,
+                &r,
+                &bundle,
+                &policy,
+                &approved_plan,
+                &approved_bundle,
+            )?
         }
         Cmd::VerifyRun {
+            plan,
             controller,
             run,
             attempt,
             revision,
-        } => github::verify_run(&controller, run, attempt, &revision)?,
+        } => {
+            let plan: Option<Plan> = plan.as_ref().map(|p| read_json(p)).transpose()?;
+            github::verify_run(&controller, run, attempt, &revision, plan.as_ref())?
+        }
         Cmd::Post {
             result,
             expected_plan_digest,
@@ -302,15 +319,7 @@ fn execute(cli: Cli) -> Result<(Value, i32)> {
                 r.plan.digest == expected_plan_digest,
                 "report does not match trusted resolver digest"
             );
-            let verified = service::aggregate(&r.plan, r.platforms.values().cloned().collect())?;
-            ensure!(
-                verified.build == r.build
-                    && verified.tests == r.tests
-                    && verified.closure_export == r.closure_export
-                    && verified.publication == r.publication
-                    && verified.retrieval == r.retrieval,
-                "aggregate status mismatch"
-            );
+            service::validate_review(&r)?;
             service::post(&r, &output)?
         }
         Cmd::Manifest {

@@ -302,13 +302,23 @@ pub fn authorize_publication(
 }
 pub fn publish(
     plan: &Plan,
+    review: &ReviewResult,
     r: &PlatformResult,
     bundle: &Path,
     policy: &Path,
     approved_plan: &str,
     approved_bundle: &str,
 ) -> Result<Value> {
+    validate_review(review)?;
+    ensure!(
+        review.plan == *plan && review.successful(),
+        "publication requires a complete successful review"
+    );
     let digest = artifact::validate_bundle(plan, r, bundle)?;
+    ensure!(
+        review.bundle_digests.get(&r.effective.system) == Some(&digest),
+        "bundle differs from collected review"
+    );
     authorize_publication(plan, r, approved_plan, approved_bundle, &digest)?;
     let p: Value = read_json(policy)?;
     ensure!(
@@ -366,6 +376,36 @@ pub fn publish(
     Ok(
         json!({"schema_version":VERSION,"publication":"passed","retrieval":"not_run","effective_plan_digest":approved_plan,"bundle_digest":approved_bundle,"cache_url":c.url,"public_keys":c.public_keys}),
     )
+}
+
+pub fn validate_review(r: &ReviewResult) -> Result<()> {
+    let verified = aggregate(&r.plan, r.platforms.values().cloned().collect())?;
+    ensure!(
+        r.schema_version == VERSION
+            && verified.build == r.build
+            && verified.tests == r.tests
+            && verified.closure_export == r.closure_export
+            && verified.publication == r.publication
+            && verified.retrieval == r.retrieval
+            && verified.missing_platforms == r.missing_platforms,
+        "aggregate status mismatch"
+    );
+    ensure!(
+        r.platforms
+            .iter()
+            .all(|(system, p)| system == &p.effective.system),
+        "aggregate platform key mismatch"
+    );
+    let digests: BTreeMap<_, _> = r
+        .platforms
+        .iter()
+        .map(|(s, p)| Ok((s.clone(), canonical_digest(p)?)))
+        .collect::<Result<_>>()?;
+    ensure!(
+        digests == r.bundle_digests,
+        "aggregate bundle digest mismatch"
+    );
+    Ok(())
 }
 
 /// The pinned Attic reads only XDG_CONFIG_HOME/attic/config.toml; no --config flag.
@@ -486,6 +526,6 @@ pub fn retrieve_report(
         r.plan.run_id == run_id && r.plan.run_attempt == attempt && r.plan.run_repository == repo,
         "report origin mismatch"
     );
-    aggregate(&r.plan, r.platforms.into_values().collect())?;
+    validate_review(&r)?;
     Ok(destination.join("review-result.json"))
 }

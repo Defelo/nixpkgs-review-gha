@@ -263,6 +263,56 @@ fn blocked_selection_does_not_pass_requested_checks() {
     let aggregate = aggregate(&p, vec![r]).unwrap();
     assert_eq!(aggregate.tests, Outcome::Failed);
 }
+#[test]
+fn publication_source_requires_successful_run_and_exact_attempt_jobs() {
+    use repo_review::github::{validate_source_jobs, validate_source_run};
+    let p = plan();
+    let repo = &p.run_repository;
+    let run = json!({"id":1,"repository":{"full_name":repo},"head_sha":HEAD,"path":WORKFLOW,"event":"workflow_dispatch","run_attempt":1,"status":"completed","conclusion":"success"});
+    validate_source_run(repo, 1, 1, HEAD, &run).unwrap();
+    for status in ["cancelled", "failure", "skipped", "timed_out", "neutral"] {
+        let mut bad = run.clone();
+        bad["conclusion"] = json!(status);
+        assert!(validate_source_run(repo, 1, 1, HEAD, &bad).is_err());
+    }
+    let jobs:Vec<Value>=["controller","resolve","collect","build-x86_64-linux"].iter().map(|n|json!({"name":n,"run_id":1,"run_attempt":1,"head_sha":HEAD,"status":"completed","conclusion":"success"})).collect();
+    validate_source_jobs(repo, 1, 1, HEAD, Some(&p), &jobs).unwrap();
+    for status in ["cancelled", "failure", "skipped", "timed_out"] {
+        let mut bad = jobs.clone();
+        bad[3]["conclusion"] = json!(status);
+        assert!(validate_source_jobs(repo, 1, 1, HEAD, Some(&p), &bad).is_err());
+    }
+    assert!(validate_source_jobs(repo, 1, 1, HEAD, Some(&p), &jobs[..3]).is_err());
+    let mut bad = jobs.clone();
+    bad[3]["run_attempt"] = json!(2);
+    assert!(validate_source_jobs(repo, 1, 1, HEAD, Some(&p), &bad).is_err());
+    bad = jobs.clone();
+    bad[3]["name"] = json!("build-aarch64-linux");
+    assert!(validate_source_jobs(repo, 1, 1, HEAD, Some(&p), &bad).is_err());
+    bad = jobs.clone();
+    bad.push(jobs[3].clone());
+    assert!(validate_source_jobs(repo, 1, 1, HEAD, Some(&p), &bad).is_err());
+}
+
+#[test]
+fn aggregate_claims_and_bundle_digests_cannot_be_forged() {
+    let p = plan();
+    let platform = report(&p);
+    let mut r = aggregate(&p, vec![platform.clone()]).unwrap();
+    r.bundle_digests
+        .insert("x86_64-linux".into(), canonical_digest(&platform).unwrap());
+    validate_review(&r).unwrap();
+    let mut bad = r.clone();
+    bad.tests = Outcome::NotRun;
+    assert!(validate_review(&bad).is_err());
+    bad = r.clone();
+    bad.bundle_digests
+        .insert("x86_64-linux".into(), "0".repeat(64));
+    assert!(validate_review(&bad).is_err());
+    bad = r;
+    bad.missing_platforms.push("aarch64-linux".into());
+    assert!(validate_review(&bad).is_err());
+}
 
 #[test]
 fn export_failure_exits_unsuccessfully_and_retains_build_facts() {

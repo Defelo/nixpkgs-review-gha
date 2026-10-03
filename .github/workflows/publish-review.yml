@@ -86,13 +86,19 @@ jobs:
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.run_id }}
+          name: review-${{ inputs.run_id }}-${{ inputs.attempt }}
+          path: review
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
           name: platform-${{ inputs.system }}-${{ inputs.run_id }}-${{ inputs.attempt }}
           path: bundle
       - name: Revalidate origin and bundle before exposing cache credentials
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tools/bin/repo-review verify-run --controller "$GITHUB_REPOSITORY" --run "$SOURCE_RUN" --attempt "$SOURCE_ATTEMPT" --revision "$SOURCE_REVISION"
+          tools/bin/repo-review verify-run --controller "$GITHUB_REPOSITORY" --run "$SOURCE_RUN" --attempt "$SOURCE_ATTEMPT" --revision "$SOURCE_REVISION" --plan metadata/plan.json
           tools/bin/repo-review validate-report --plan metadata/plan.json --bundle bundle > validated.json
           test "$(jq -r .effective_plan_digest validated.json)" = "$APPROVED_PLAN"
           test "$(jq -r .bundle_digest validated.json)" = "$APPROVED_BUNDLE"
@@ -108,7 +114,7 @@ jobs:
           CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
           CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
-        run: tools/bin/repo-review publish --plan metadata/plan.json --bundle bundle --policy policy.json --approved-plan "$APPROVED_PLAN" --approved-bundle "$APPROVED_BUNDLE" > publication.json
+        run: tools/bin/repo-review publish --plan metadata/plan.json --review review/review-result.json --bundle bundle --policy policy.json --approved-plan "$APPROVED_PLAN" --approved-bundle "$APPROVED_BUNDLE" > publication.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ always() }}
         with:

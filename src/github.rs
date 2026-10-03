@@ -245,21 +245,123 @@ pub fn checkout(i: &Identity, destination: &Path) -> Result<()> {
     );
     Ok(())
 }
-pub fn verify_run(repo: &str, id: u64, attempt: u64, controller: &str) -> Result<Value> {
+pub fn validate_source_run(
+    repo: &str,
+    id: u64,
+    attempt: u64,
+    controller: &str,
+    r: &Value,
+) -> Result<()> {
+    repository(repo)?;
+    sha(controller)?;
+    ensure!(
+        r["id"] == id
+            && r["repository"]["full_name"] == repo
+            && r["head_sha"] == controller
+            && r["path"] == WORKFLOW
+            && r["event"] == "workflow_dispatch"
+            && r["run_attempt"] == attempt
+            && r["status"] == "completed"
+            && r["conclusion"] == "success",
+        "untrusted source workflow/run/attempt/revision"
+    );
+    Ok(())
+}
+
+pub fn validate_source_jobs(
+    repo: &str,
+    id: u64,
+    attempt: u64,
+    controller: &str,
+    plan: Option<&Plan>,
+    jobs: &[Value],
+) -> Result<()> {
+    use std::collections::BTreeSet;
+    let actual: BTreeSet<String> = jobs
+        .iter()
+        .filter_map(|j| j["name"].as_str())
+        .filter(|n| n.starts_with("build-"))
+        .map(str::to_owned)
+        .collect();
+    ensure!(
+        !actual.is_empty() && actual.len() <= 4,
+        "missing source build jobs"
+    );
+    if let Some(p) = plan {
+        p.validate()?;
+        ensure!(
+            p.run_repository == repo
+                && p.run_id == id
+                && p.run_attempt == attempt
+                && p.controller.repository == repo
+                && p.controller.commit == controller,
+            "source plan/run identity mismatch"
+        );
+        let expected: BTreeSet<_> = p
+            .request
+            .systems
+            .iter()
+            .map(|s| format!("build-{s}"))
+            .collect();
+        ensure!(
+            actual == expected,
+            "missing/unrequested source platform jobs"
+        );
+    }
+    for name in ["controller".into(), "resolve".into(), "collect".into()]
+        .into_iter()
+        .chain(actual)
+    {
+        let matching: Vec<_> = jobs.iter().filter(|j| j["name"] == name).collect();
+        ensure!(matching.len() == 1, "missing/duplicate source job {name}");
+        let j = matching[0];
+        ensure!(
+            j["run_id"] == id
+                && j["run_attempt"] == attempt
+                && j["head_sha"] == controller
+                && j["status"] == "completed"
+                && j["conclusion"] == "success",
+            "source job {name} did not succeed in the approved attempt"
+        );
+    }
+    Ok(())
+}
+
+pub fn verify_run(
+    repo: &str,
+    id: u64,
+    attempt: u64,
+    controller: &str,
+    plan: Option<&Plan>,
+) -> Result<Value> {
     repository(repo)?;
     sha(controller)?;
     let r = api(&format!(
         "repos/{repo}/actions/runs/{id}/attempts/{attempt}"
     ))?;
-    ensure!(
-        r["repository"]["full_name"] == repo
-            && r["head_sha"] == controller
-            && r["path"] == WORKFLOW
-            && r["event"] == "workflow_dispatch"
-            && r["run_attempt"] == attempt
-            && r["status"] == "completed",
-        "untrusted source workflow/run/attempt/revision"
-    );
+    validate_source_run(repo, id, attempt, controller, &r)?;
+    let mut jobs = Vec::new();
+    for page in 1..=10 {
+        let v = api(&format!(
+            "repos/{repo}/actions/runs/{id}/attempts/{attempt}/jobs?per_page=100&page={page}"
+        ))?;
+        let total = v["total_count"]
+            .as_u64()
+            .ok_or_else(|| anyhow::anyhow!("missing job count"))?;
+        ensure!(total <= 1000, "source job count exceeds limit");
+        let batch = v["jobs"]
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("missing source jobs"))?;
+        jobs.extend_from_slice(batch);
+        if jobs.len() as u64 >= total {
+            break;
+        }
+        ensure!(
+            !batch.is_empty() && page < 10,
+            "incomplete source job pagination"
+        );
+    }
+    validate_source_jobs(repo, id, attempt, controller, plan, &jobs)?;
     let actor = text(&r, "/triggering_actor/login")?;
     if !name(&actor) {
         bail!("invalid actor");

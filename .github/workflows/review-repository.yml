@@ -84,6 +84,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   build:
+    name: build-${{ matrix.system }}
     needs: [controller, resolve]
     strategy:
       fail-fast: false
