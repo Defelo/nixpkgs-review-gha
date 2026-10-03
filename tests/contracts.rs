@@ -94,6 +94,7 @@ fn report(p: &Plan) -> PlatformResult {
         sandbox: "true".into(),
         build: Outcome::Passed,
         tests: Outcome::Passed,
+        closure_export: Outcome::Passed,
         publication: Outcome::NotRun,
         retrieval: Outcome::NotRun,
         error: None,
@@ -246,6 +247,77 @@ fn absent_platform_or_check_is_never_success() {
     bad.effective.system = "aarch64-linux".into();
     bad.effective.seal().unwrap();
     assert!(validate_result(&p, &bad).is_err());
+}
+#[test]
+fn blocked_selection_does_not_pass_requested_checks() {
+    let p = plan();
+    let mut r = report(&p);
+    r.build = Outcome::Blocked;
+    r.tests = Outcome::NotRun;
+    r.closure_export = Outcome::NotRun;
+    r.effective.targets.clear();
+    r.effective.seal().unwrap();
+    r.target_outcomes.clear();
+    r.test_evidence.clear();
+    r.closure.clear();
+    let aggregate = aggregate(&p, vec![r]).unwrap();
+    assert_eq!(aggregate.tests, Outcome::Failed);
+}
+
+#[test]
+fn export_failure_exits_unsuccessfully_and_retains_build_facts() {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+    let temp = tempfile::tempdir().unwrap();
+    let p = plan();
+    let plan_path = temp.path().join("plan.json");
+    repo_review::write_json(&plan_path, &p).unwrap();
+    let tools = temp.path().join("tools");
+    std::fs::create_dir(&tools).unwrap();
+    let lock = json!({"version":7,"root":"root","nodes":{"root":{}}});
+    let metadata = json!({"locked":{"rev":HEAD,"narHash":"sha256-test"},"locks":lock});
+    let drv = format!("{ROOT}.drv");
+    let derivations = json!({&drv:{"system":"x86_64-linux","outputs":{"out":{"path":ROOT}}}});
+    let closure = json!({ROOT:{"narHash":"sha256-test","narSize":1,"references":[]}});
+    for (name, script) in [
+        (
+            "git",
+            format!(
+                "#!/bin/sh\ncase \"$1\" in\ninit) printf '{{}}' > flake.nix;;\nrev-parse) printf '%s' '{HEAD}';;\nesac\n"
+            ),
+        ),
+        ("uname", "#!/bin/sh\nprintf x86_64".into()),
+        (
+            "nix",
+            format!(
+                "#!/bin/sh\ncase \"$1 $2 $3 $4\" in\n'config show system '*) printf x86_64-linux;;\n'config show sandbox '*) printf true;;\n--version*) printf 'Nix fixture';;\n'flake metadata '*) printf '%s' '{metadata}';;\neval*) printf '%s' '{drv}';;\n'derivation show '*) printf '%s' '{derivations}';;\nbuild*) printf '[]';;\n'path-info '*) printf '%s' '{closure}';;\ncopy*) printf 'intentional export failure' >&2; exit 1;;\n*) exit 9;;\nesac\n"
+            ),
+        ),
+    ] {
+        let path = tools.join(name);
+        std::fs::write(&path, script).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let out = temp.path().join("bundle");
+    let result = Command::new(env!("CARGO_BIN_EXE_repo-review"))
+        .args(["build", "--plan"])
+        .arg(&plan_path)
+        .args(["--system", "x86_64-linux", "--output"])
+        .arg(&out)
+        .env("PATH", &tools)
+        .output()
+        .unwrap();
+    let r: PlatformResult = repo_review::read_json(&out.join("review-result.json")).unwrap();
+    assert_eq!(r.build, Outcome::Passed, "{:?}", r.error);
+    assert_eq!(r.tests, Outcome::Passed);
+    assert_eq!(r.closure_export, Outcome::Failed);
+    assert!(r.error.as_deref().is_some_and(|s| s.contains("nix failed")));
+    assert!(
+        !result.status.success(),
+        "export failure must not return exit code zero"
+    );
+    validate_bundle(&p, &r, &out).unwrap();
+    assert!(!aggregate(&p, vec![r]).unwrap().successful());
 }
 #[test]
 fn local_no_changes_requires_complete_nixpkgs_evidence() {

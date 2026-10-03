@@ -227,6 +227,21 @@ pub fn validate_result(plan: &Plan, result: &PlatformResult) -> Result<()> {
     );
     let e = &result.effective;
     ensure!(
+        result.publication == Outcome::NotRun && result.retrieval == Outcome::NotRun,
+        "build reports cannot attest publication or retrieval"
+    );
+    ensure!(
+        matches!(
+            result.closure_export,
+            Outcome::Passed | Outcome::Failed | Outcome::NotRun
+        ),
+        "invalid closure-export outcome"
+    );
+    ensure!(
+        result.closure_export != Outcome::Passed || result.error.is_none(),
+        "successful export with execution error"
+    );
+    ensure!(
         e.metadata_digest == plan.digest && plan.request.systems.contains(&e.system),
         "wrong platform/metadata"
     );
@@ -249,6 +264,14 @@ pub fn validate_result(plan: &Plan, result: &PlatformResult) -> Result<()> {
         "no_changes is Nixpkgs-only"
     );
     if e.targets.is_empty() {
+        ensure!(
+            result.tests == Outcome::NotRun
+                && result.closure_export == Outcome::NotRun
+                && result.target_outcomes.is_empty()
+                && result.test_evidence.is_empty()
+                && result.closure.is_empty(),
+            "empty selection cannot attest execution or export"
+        );
         ensure!(
             matches!(
                 result.build,
@@ -344,6 +367,16 @@ pub fn validate_result(plan: &Plan, result: &PlatformResult) -> Result<()> {
             plan.request.checks.is_empty() || result.tests == Outcome::Passed,
             "required checks did not pass"
         );
+        ensure!(
+            result.closure_export != Outcome::NotRun,
+            "passing build must attempt closure export"
+        );
+    }
+    if result.closure_export == Outcome::Passed {
+        ensure!(
+            result.build == Outcome::Passed,
+            "export requires passing build"
+        );
         validate_closure(&roots(result), &result.closure)?;
     }
     Ok(())
@@ -413,7 +446,7 @@ pub fn validate_bundle(plan: &Plan, r: &PlatformResult, path: &Path) -> Result<S
                 "effective lock file mismatch"
             );
         }
-        if r.build == Outcome::Passed {
+        if r.closure_export == Outcome::Passed {
             validate_cache_files(r, path)?;
         }
     }

@@ -22,12 +22,21 @@ pub struct ReviewResult {
     pub plan: Plan,
     pub build: Outcome,
     pub tests: Outcome,
+    pub closure_export: Outcome,
     pub publication: Outcome,
     pub retrieval: Outcome,
     pub platforms: BTreeMap<String, PlatformResult>,
     pub missing_platforms: Vec<String>,
     pub bundle_digests: BTreeMap<String, String>,
     pub provenance: String,
+}
+impl ReviewResult {
+    pub fn successful(&self) -> bool {
+        self.missing_platforms.is_empty()
+            && self.platforms.len() == self.plan.request.systems.len()
+            && self.platforms.values().all(PlatformResult::successful)
+            && matches!(self.tests, Outcome::Passed | Outcome::NotRun)
+    }
 }
 pub fn aggregate(plan: &Plan, reports: Vec<PlatformResult>) -> Result<ReviewResult> {
     plan.validate()?;
@@ -57,15 +66,40 @@ pub fn aggregate(plan: &Plan, reports: Vec<PlatformResult>) -> Result<ReviewResu
     let tests = if !required_checks {
         Outcome::NotRun
     } else if missing.is_empty()
-        && platforms
-            .values()
-            .all(|r| !r.effective.targets.iter().any(|t| t.check) || r.tests == Outcome::Passed)
+        && platforms.values().all(|r| {
+            if plan.request.checks.is_empty() {
+                !r.effective.targets.iter().any(|t| t.check) || r.tests == Outcome::Passed
+            } else {
+                r.tests == Outcome::Passed
+            }
+        })
     {
         Outcome::Passed
     } else {
         Outcome::Failed
     };
-    Ok(ReviewResult { schema_version: VERSION, plan: plan.clone(), build: if passed { Outcome::Passed } else { Outcome::Failed }, tests,
+    let closure_export = if !missing.is_empty()
+        || platforms
+            .values()
+            .any(|r| r.closure_export == Outcome::Failed)
+    {
+        Outcome::Failed
+    } else if platforms
+        .values()
+        .any(|r| r.closure_export == Outcome::Passed)
+    {
+        if platforms
+            .values()
+            .all(|r| r.closure_export == Outcome::Passed || r.build == Outcome::NoChanges)
+        {
+            Outcome::Passed
+        } else {
+            Outcome::Failed
+        }
+    } else {
+        Outcome::NotRun
+    };
+    Ok(ReviewResult { schema_version: VERSION, plan: plan.clone(), build: if passed { Outcome::Passed } else { Outcome::Failed }, tests, closure_export,
         publication: if plan.request.publication == Publication::RequestApproval { Outcome::Blocked } else { Outcome::NotRun }, retrieval: Outcome::NotRun,
         platforms, missing_platforms: missing, bundle_digests: BTreeMap::new(),
         provenance: "GitHub metadata is frozen by resolver; effective locks, derivations, and test evidence are untrusted runner observations, not independent attestations.".into() })
@@ -101,7 +135,7 @@ pub fn collect(plan: &Plan, inputs: &Path, out: &Path) -> Result<ReviewResult> {
 pub fn markdown(r: &ReviewResult) -> String {
     let p = &r.plan;
     let mut text = format!(
-        "<!-- repo-review:{}:{} -->\n# Repository review\n\nTarget: `{}` at `{}` (tree `{}`).\n\nController: `{}` at `{}`.\n\nMetadata plan: `{}`.\n\nRun: https://github.com/{}/actions/runs/{}/attempts/{}\n\nBuild: **{:?}**; tests: **{:?}**; publication: **{:?}**; fresh-store retrieval: **{:?}**.\n\n",
+        "<!-- repo-review:{}:{} -->\n# Repository review\n\nTarget: `{}` at `{}` (tree `{}`).\n\nController: `{}` at `{}`.\n\nMetadata plan: `{}`.\n\nRun: https://github.com/{}/actions/runs/{}/attempts/{}\n\nBuild: **{:?}**; tests: **{:?}**; closure export: **{:?}**; publication: **{:?}**; fresh-store retrieval: **{:?}**.\n\n",
         p.target.repository,
         p.target.commit,
         p.target.repository,
@@ -115,6 +149,7 @@ pub fn markdown(r: &ReviewResult) -> String {
         p.run_attempt,
         r.build,
         r.tests,
+        r.closure_export,
         r.publication,
         r.retrieval
     );
@@ -256,7 +291,7 @@ pub fn authorize_publication(
         "publication not requested"
     );
     ensure!(
-        r.build == Outcome::Passed,
+        r.successful() && r.build == Outcome::Passed,
         "publication requires passing result with frozen outputs"
     );
     ensure!(

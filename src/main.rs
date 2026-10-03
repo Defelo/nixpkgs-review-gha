@@ -222,7 +222,7 @@ fn execute(cli: Cli) -> Result<(Value, i32)> {
             output,
         } => {
             let r = backend::build(&read_json(&plan)?, &system, &output)?;
-            let code = if matches!(r.build, Outcome::Passed | Outcome::NoChanges) {
+            let code = if r.successful() {
                 0
             } else if r.build == Outcome::Unsupported {
                 4
@@ -243,7 +243,7 @@ fn execute(cli: Cli) -> Result<(Value, i32)> {
                 "trusted resolver digest mismatch"
             );
             let r = service::collect(&p, &inputs, &output)?;
-            let code = if r.build == Outcome::Passed { 0 } else { 3 };
+            let code = if r.successful() { 0 } else { 3 };
             return Ok((serde_json::to_value(r)?, code));
         }
         Cmd::Fetch {
@@ -306,6 +306,7 @@ fn execute(cli: Cli) -> Result<(Value, i32)> {
             ensure!(
                 verified.build == r.build
                     && verified.tests == r.tests
+                    && verified.closure_export == r.closure_export
                     && verified.publication == r.publication
                     && verified.retrieval == r.retrieval,
                 "aggregate status mismatch"

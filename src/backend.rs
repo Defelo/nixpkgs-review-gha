@@ -256,6 +256,7 @@ pub fn build(plan: &Plan, system: &str, out: &Path) -> Result<PlatformResult> {
         sandbox: String::new(),
         build: Outcome::NotRun,
         tests: Outcome::NotRun,
+        closure_export: Outcome::NotRun,
         publication: Outcome::NotRun,
         retrieval: Outcome::NotRun,
         error: None,
@@ -351,7 +352,9 @@ pub fn build(plan: &Plan, system: &str, out: &Path) -> Result<PlatformResult> {
             result.build == Outcome::Passed,
             "one or more requested targets failed"
         );
+        result.closure_export = Outcome::Failed;
         artifact::export(&mut result, out)?;
+        result.closure_export = Outcome::Passed;
         Ok(())
     })();
     if let Err(e) = execution {

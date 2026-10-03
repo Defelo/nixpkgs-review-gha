@@ -426,6 +426,9 @@
       },
       "type": "object"
     },
+    "closure_export": {
+      "$ref": "#/$defs/Outcome"
+    },
     "effective": {
       "$ref": "#/$defs/EffectivePlan"
     },
@@ -489,6 +492,7 @@
     "sandbox",
     "build",
     "tests",
+    "closure_export",
     "publication",
     "retrieval",
     "files",

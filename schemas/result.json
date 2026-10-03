@@ -215,6 +215,9 @@
           },
           "type": "object"
         },
+        "closure_export": {
+          "$ref": "#/$defs/Outcome"
+        },
         "effective": {
           "$ref": "#/$defs/EffectivePlan"
         },
@@ -278,6 +281,7 @@
         "sandbox",
         "build",
         "tests",
+        "closure_export",
         "publication",
         "retrieval",
         "files",
@@ -510,6 +514,9 @@
       },
       "type": "object"
     },
+    "closure_export": {
+      "$ref": "#/$defs/Outcome"
+    },
     "missing_platforms": {
       "items": {
         "type": "string"
@@ -548,6 +555,7 @@
     "plan",
     "build",
     "tests",
+    "closure_export",
     "publication",
     "retrieval",
     "platforms",

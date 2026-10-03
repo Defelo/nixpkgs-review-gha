@@ -425,6 +425,7 @@ pub struct PlatformResult {
     pub sandbox: String,
     pub build: Outcome,
     pub tests: Outcome,
+    pub closure_export: Outcome,
     pub publication: Outcome,
     pub retrieval: Outcome,
     pub error: Option<String>,
@@ -432,6 +433,22 @@ pub struct PlatformResult {
     pub target_outcomes: BTreeMap<String, Outcome>,
     pub test_evidence: BTreeMap<String, String>,
     pub closure: BTreeMap<String, Nar>,
+}
+impl PlatformResult {
+    pub fn successful(&self) -> bool {
+        self.error.is_none()
+            && match self.build {
+                Outcome::Passed => {
+                    self.closure_export == Outcome::Passed
+                        && (!self.effective.targets.iter().any(|t| t.check)
+                            || self.tests == Outcome::Passed)
+                }
+                Outcome::NoChanges => {
+                    self.closure_export == Outcome::NotRun && self.tests == Outcome::NotRun
+                }
+                _ => false,
+            }
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
