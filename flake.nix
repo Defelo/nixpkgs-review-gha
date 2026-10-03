@@ -32,9 +32,15 @@
         pkgs:
         let
           reviewPython = pkgs.python3.withPackages (ps: [ (ps.toPythonModule pkgs.nixpkgs-review) ]);
-          selector = pkgs.writeShellScriptBin "repo-review-nixpkgs-select" ''
-            exec ${reviewPython}/bin/python ${./adapters/nixpkgs.py} "$@"
-          '';
+          selector =
+            (pkgs.writeShellScriptBin "repo-review-nixpkgs-select" ''
+              exec ${reviewPython}/bin/python ${./adapters/nixpkgs.py} "$@"
+            '').overrideAttrs
+              (old: {
+                passthru = (old.passthru or { }) // {
+                  python = reviewPython;
+                };
+              });
         in
         rec {
           repo-review = pkgs.rustPlatform.buildRustPackage {
@@ -84,11 +90,14 @@
       checks = eachSystem (pkgs: {
         inherit (pkgs) nixpkgs-review;
         inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) repo-review;
-        nixpkgs-selector = pkgs.runCommand "nixpkgs-selector-import-check" { } ''
-          ${
-            self.packages.${pkgs.stdenv.hostPlatform.system}.nixpkgs-selector
-          }/bin/repo-review-nixpkgs-select --self-test > $out
-        '';
+        nixpkgs-selector =
+          let
+            selector = self.packages.${pkgs.stdenv.hostPlatform.system}.nixpkgs-selector;
+          in
+          pkgs.runCommand "nixpkgs-selector-check" { } ''
+            ${selector}/bin/repo-review-nixpkgs-select --self-test > $out
+            ${selector.python}/bin/python ${./tests/nixpkgs_adapter.py} ${./adapters/nixpkgs.py} ${./fixtures/nixpkgs/selection.json} >> $out
+          '';
         fmt = pkgs.runCommand "fmt-check" { } ''
           cp -r --no-preserve=mode ${self} repo
           ${lib.getExe self.formatter.${pkgs.stdenv.hostPlatform.system}} -C repo --ci

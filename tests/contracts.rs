@@ -371,13 +371,51 @@ fn export_failure_exits_unsuccessfully_and_retains_build_facts() {
 }
 #[test]
 fn local_no_changes_requires_complete_nixpkgs_evidence() {
-    let p = plan().pr.unwrap();
-    assert!(validate_nixpkgs_report(&json!({}), &p, "x86_64-linux").is_err());
-    let v: Value = serde_json::from_str(include_str!("../fixtures/nixpkgs/report.json")).unwrap();
-    assert_eq!(
-        validate_nixpkgs_report(&v, &p, "x86_64-linux").unwrap(),
-        Outcome::NoChanges
-    );
+    let mut p = plan();
+    p.request.backend = Backend::Nixpkgs;
+    p.request.repository = "NixOS/nixpkgs".into();
+    p.request.packages.clear();
+    p.request.checks.clear();
+    p.target.repository = p.request.repository.clone();
+    p.pr.as_mut().unwrap().url = "https://github.com/NixOS/nixpkgs/pull/1".into();
+    p.request_id = canonical_digest(&p.request).unwrap();
+    p.seal().unwrap();
+    let mut r = report(&p);
+    r.effective.metadata_digest = p.digest.clone();
+    r.effective.targets.clear();
+    r.effective.flake_reference = None;
+    r.effective.lock = None;
+    r.effective.lock_digest = None;
+    r.effective.source_nar_hash = None;
+    r.effective.seal().unwrap();
+    r.target_outcomes.clear();
+    r.test_evidence.clear();
+    r.closure.clear();
+    r.build = Outcome::NoChanges;
+    r.tests = Outcome::NotRun;
+    r.closure_export = Outcome::NotRun;
+    let temp = tempfile::tempdir().unwrap();
+    repo_review::write_json(&temp.path().join("plan.json"), &p).unwrap();
+    repo_review::write_json(&temp.path().join("effective-plan.json"), &r.effective).unwrap();
+    r.files = inventory(temp.path()).unwrap();
+    assert!(validate_bundle(&p, &r, temp.path()).is_err());
+    let selection = json!({"schema_version":1,"backend_version":"3.7.0","tested_commit":HEAD,"base_commit":BASE,"system":"x86_64-linux","changed_attributes":[],"derivations":[]});
+    let path = temp.path().join("nixpkgs-selection.json");
+    repo_review::write_json(&path, &selection).unwrap();
+    r.files = inventory(temp.path()).unwrap();
+    validate_bundle(&p, &r, temp.path()).unwrap();
+    assert!(r.successful());
+    for (key, value) in [
+        ("tested_commit", json!(MERGE)),
+        ("changed_attributes", json!(["hello"])),
+        ("derivations", json!([{}])),
+    ] {
+        let mut bad = selection.clone();
+        bad[key] = value;
+        repo_review::write_json(&path, &bad).unwrap();
+        r.files = inventory(temp.path()).unwrap();
+        assert!(validate_bundle(&p, &r, temp.path()).is_err());
+    }
 }
 #[test]
 fn closure_requires_all_runtime_dependencies_and_no_extras() {

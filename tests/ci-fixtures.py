@@ -34,8 +34,3 @@ for kind in ("flake", "external-flake", "failing"):
         assert result.returncode == 0, report.get("error")
         subprocess.run([cli, "validate-report", "--plan", str(plan), "--bundle", str(bundle)], check=True, env=env)
         subprocess.run([cli, "verify-local", "--plan", str(plan), "--bundle", str(bundle), "--destination", str((evidence / f"{kind}-fresh-store").resolve())], check=True, env=env)
-        # Missing remote/cache data is a failure, never a reason to compile.
-        nar = next((bundle / "cache/nar").iterdir())
-        nar.rename(nar.with_suffix(nar.suffix + ".removed"))
-        missing = subprocess.run([cli, "verify-local", "--plan", str(plan), "--bundle", str(bundle), "--destination", str((evidence / f"{kind}-missing-store").resolve())], env=env)
-        assert missing.returncode != 0

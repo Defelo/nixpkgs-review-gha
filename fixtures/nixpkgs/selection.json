@@ -1,0 +1,14 @@
+{
+  "base": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "merge": "cccccccccccccccccccccccccccccccccccccccc",
+  "old": [
+    { "attribute": "hello", "path": "/nix/store/11111111111111111111111111111111-hello-old", "version": "1" },
+    { "attribute": "stable", "path": "/nix/store/22222222222222222222222222222222-stable", "version": "1" }
+  ],
+  "new": [
+    { "attribute": "hello", "path": "/nix/store/00000000000000000000000000000000-hello", "version": "2" },
+    { "attribute": "stable", "path": "/nix/store/22222222222222222222222222222222-stable", "version": "1" },
+    { "attribute": "nixosTests.smoke", "path": "/nix/store/33333333333333333333333333333333-smoke", "version": "1" }
+  ]
+}

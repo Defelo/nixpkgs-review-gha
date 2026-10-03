@@ -481,35 +481,3 @@ fn nixpkgs_prepare(plan: &Plan, system: &str, out: &Path) -> Result<EffectivePla
     write_json(&out.join("effective-plan.json"), &e)?;
     Ok(e)
 }
-pub fn validate_nixpkgs_report(report: &Value, pr: &PullRequest, system: &str) -> Result<Outcome> {
-    ensure!(
-        report["pr"] == pr.number
-            && report["commit"] == pr.head
-            && report["checkout"] == "merge"
-            && report["systems"] == serde_json::json!([system]),
-        "nixpkgs report identity mismatch"
-    );
-    let r = &report["result"][system];
-    let mut total = 0;
-    for k in [
-        "failed",
-        "broken",
-        "non-existent",
-        "blacklisted",
-        "built",
-        "tests",
-    ] {
-        let items = r[k]
-            .as_array()
-            .ok_or_else(|| anyhow::anyhow!("incomplete nixpkgs report"))?;
-        total += items.len();
-        if !["built", "tests"].contains(&k) && !items.is_empty() {
-            return Ok(Outcome::Failed);
-        }
-    }
-    Ok(if total == 0 {
-        Outcome::NoChanges
-    } else {
-        Outcome::Passed
-    })
-}
