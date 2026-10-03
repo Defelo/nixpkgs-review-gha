@@ -15,7 +15,10 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
       - name: Build CLI and run Rust tests with locked tools
-        run: nix build .#repo-review --out-link tools --no-update-lock-file -L
+        run: |
+          nix build .#repo-review --out-link tools --no-update-lock-file -L
+          tools/bin/repo-review verify-engine --root .
+          tools/bin/simit init ci --review-only --check --diff
       - name: Check pinned Nixpkgs adapter imports and Attic CLI compatibility
         run: |
           nix build .#checks.x86_64-linux.nixpkgs-selector --no-link --no-update-lock-file -L
@@ -39,7 +42,13 @@ jobs:
       - name: Actual retrieval misses and signed closure verification
         env:
           REPO_REVIEW_FIXTURE_ROOT: ${{ github.workspace }}/fixture-evidence
-        run: nix shell .#cargo .#rustc .#gcc .#nix --command cargo test --locked --test retrieval -- --ignored
+        run: |
+          engine_revision=$(tools/bin/repo-review engine-info | python3 -c 'import json,sys; print(json.load(sys.stdin)["revision"])')
+          git init engine
+          git -C engine fetch --depth=1 https://github.com/caniko/simit.git "$engine_revision"
+          git -C engine checkout --detach FETCH_HEAD
+          test "$(git -C engine rev-parse HEAD)" = "$engine_revision"
+          nix shell .#cargo .#rustc .#gcc .#nix --command cargo test --manifest-path engine/Cargo.toml --locked --test review_retrieval -- --ignored
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ always() }}
         with:

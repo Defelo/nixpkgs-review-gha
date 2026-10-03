@@ -29,9 +29,10 @@ exact identities, and `explicit-check-rebuild` evidence. Publication and retriev
 remain `not_run` for this request. Inspect artifacts and logs; don't infer service
 readiness from the PR/check YAML alone.
 
-For external acceptance, use the same exact controller commit as target and recipe,
-backend `external-flake`, directory `.`, recipe directory `fixtures/external`, and
-source input `source`. CI covers conventional, external and deliberately failing
+For external acceptance, use the same exact controller commit as target and the
+exact fixture recipe entry reviewed in `policy.json`, backend `external-flake`,
+directory `.`, and the recipe's recorded directory and source input. There is no
+implicit fixture-policy exemption. CI covers conventional, external and deliberately failing
 fixtures and secretless isolated closure transfer.
 
 After trusted cache profile activation, submit a request with
@@ -62,6 +63,12 @@ schema and CLI validation. OpenPencil is an ordinary external-flake client. This
 task makes no OpenPencil changes or upstream posts.
 
 The infrastructure draft is [PR #1](https://github.com/caniko/nixpkgs-review-gha/pull/1).
+The engine migration is [Simit PR #31](https://github.com/caniko/simit/pull/31).
+Review both together: this controller pins an exact migration commit through a
+direct, non-flake Simit source input. Its content hash is captured by the CI lock
+receipt, and its tool package embeds the engine identity checked against plans.
+Merge the engine migration manually before the controller, retaining that
+reviewed exact pin until a separately reviewed update.
 The checked-in discovery descriptor pins a complete implementation commit; its
 `ready: false` describes activation status. Its controller pin deliberately
 precedes the documentation commit containing the descriptor, avoiding a

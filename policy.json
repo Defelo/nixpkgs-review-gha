@@ -1,6 +1,13 @@
 {
   "schema_version": 1,
-  "recipes": [],
+  "recipes": [
+    {
+      "repository": "caniko/nixpkgs-review-gha",
+      "commit": "f7bad6b95787f752cedbf50e09c5bf4ae0f39a07",
+      "directory": "fixtures/external",
+      "source_input": "source"
+    }
+  ],
   "caches": {},
   "max_artifact_bytes": 4294967296,
   "max_nar_bytes": 8589934592,

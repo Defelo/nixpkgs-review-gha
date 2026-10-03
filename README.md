@@ -3,7 +3,11 @@
 Exact-revision GitHub repository reviews through Nix. This retains the existing
 fork of [Defelo/nixpkgs-review-gha](https://github.com/Defelo/nixpkgs-review-gha),
 its history, MIT attribution, multi-platform mechanics, and Attic/Cachix setting
-names. `repo-review` is a compact Rust CLI; Git, Nix, GitHub CLI,
+names. [Simit](https://github.com/caniko/simit/pull/31) now owns the Rust engine,
+versioned contracts, adapter, and controller/client generation. This fork is an
+exact pinned controller deployment, owning policy, credentials, compatibility
+entry points, and activation. `repo-review` remains the compatibility frontend;
+`simit review` exposes the same engine. Git, Nix, GitHub CLI,
 [nixpkgs-review](https://github.com/Mic92/nixpkgs-review), Attic and Cachix remain
 the protocol/build clients, pinned through `flake.lock`.
 
@@ -12,6 +16,9 @@ before `review-repository.yml` can be dispatched normally. A PR or YAML file is
 not evidence of a running service. See [activation](docs/activation.md),
 [inspection](docs/inspection.md), [verification](docs/verification.md), and
 generated `review-service.json`.
+
+See [Simit controller ownership and updates](docs/simit-controller.md) for the
+engine/controller boundary and exact-pin migration workflow.
 
 ## Backends
 
@@ -170,17 +177,25 @@ never unattended rebase/force-push. Conflicts stop for manual resolution.
 ## Development
 
 ```sh
-cargo test --locked
-cargo clippy --all-targets --locked -- -D warnings
-nix build .#repo-review
+nix build .#repo-review --out-link tools
+tools/bin/simit init ci --review-only --check --diff
 nix run .#formatter.x86_64-linux -- --ci
 ```
+
+Engine Rust tests,
+Clippy, Rust 1.85 and Windows compatibility checks live in Simit. Run controller
+Nix builds and closure checks in CI under the operator's CI-only policy.
+`simit.toml` declares the controller role. Generated review/publication workflows
+and the setup action come from the exact locked Simit source; policy and legacy
+workflows remain deployment-owned. `verify-engine` rejects a running engine/tool
+package that differs from the frozen controller lock.
 
 Formatting runs through treefmt only. `check.yml` builds the Nix package (including
 Rust tests), checks workflows/schemas, and runs small conventional/external/failing
 fixtures plus isolated complete-closure transfer. The pinned Python check exercises
 real upstream change detection with recorded head/merge/no-change inputs. CI also
-runs the otherwise ignored `tests/retrieval.rs` tests against the exported closure:
+runs Simit's otherwise ignored `tests/review_retrieval.rs` tests from the exact
+engine revision against the exported closure:
 actual cache miss, unsigned rejection, wrong-key rejection, and signed exact-copy
 success, including a consumer configured with `require-sigs = false`. No target
 cache credentials are

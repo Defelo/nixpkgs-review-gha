@@ -59,9 +59,9 @@ checks signatures and appends approved keys; it does not replace default keys.
 ## Recipe trust
 
 Each `recipes` entry is an exact object containing `repository`, `commit`,
-`directory`, `source_input`. A request must match all four fields. The sole
-built-in bootstrap recipe exception is the trusted controller's own exact commit
-and `fixtures/external` directory. Prompt 02 must create a packaging commit and
+`directory`, `source_input`. A request must match all four fields. The test recipe
+is explicitly pinned in policy, using the preserved fixture commit; there is no
+built-in bootstrap recipe exemption. Prompt 02 must create a packaging commit and
 have its entry reviewed here before dispatch. Source repositories themselves may
 be arbitrary public GitHub repositories; their code never becomes controller code.
 

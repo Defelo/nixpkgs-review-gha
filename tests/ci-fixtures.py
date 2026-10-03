@@ -15,7 +15,8 @@ for kind in ("flake", "external-flake", "failing"):
     request = dict(base)
     request["directory"] = "fixtures/flake"
     if kind == "external-flake":
-        request.update(backend=kind, directory=".", recipe={"repository": repo, "commit": revision, "directory": "fixtures/external", "source_input": "source"})
+        recipe = json.loads(Path("policy.json").read_text())["recipes"][0]
+        request.update(backend=kind, directory=".", recipe=recipe)
     if kind == "failing":
         request["checks"] = ["failing"]
     path = evidence / f"{kind}-request.json"
