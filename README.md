@@ -74,6 +74,10 @@ and attempt for later invocations. There is no background daemon.
 Dispatch `.github/workflows/review-repository.yml` with one string input,
 `request`. Reusable callers must pin a **full reviewed controller SHA**:
 
+The legacy `build.yml` wrapper supports `publication: none` only. Submit
+`publication: request-approval` directly through `review-repository.yml` so
+promotion can authenticate the reviewed source workflow path.
+
 ```yaml
 permissions:
   contents: read

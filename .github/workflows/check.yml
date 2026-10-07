@@ -23,6 +23,8 @@ jobs:
         run: |
           nix build .#checks.x86_64-linux.nixpkgs-selector --no-link --no-update-lock-file -L
           nix shell .#attic-client --command attic push --help
+      - name: Compatibility callers cannot request publication
+        run: python3 tests/compatibility.py
       - name: Format and workflow validation
         run: |
           nix run .#formatter.x86_64-linux -- --ci
