@@ -1,8 +1,8 @@
 # Activation and Prompt 02 handoff
 
-The implementation PR must be reviewed and merged manually. This task is not
-authorized to merge, alter branch protections, activate hosts, change billing,
-or provision paid runners. New `workflow_dispatch` files must exist on the fork's
+The implementation PR must be reviewed and merged manually. An implementation
+merge does not authorize changing branch protections, activating hosts, changing
+billing, or provisioning paid runners. New `workflow_dispatch` files must exist on the fork's
 default branch before normal use. Local Nix evaluation/builds were explicitly
 declined by the operator; Nix gates run in `check.yml` only.
 
@@ -15,7 +15,8 @@ nix build "github:$CONTROLLER/$REVISION#repo-review" --out-link tools
 tools/bin/repo-review example | jq \
   --arg repo "$CONTROLLER" --arg rev "$REVISION" \
   '.repository=$repo | .pr=null | .revision=$rev | .directory="fixtures/flake" | .test_profile="checks-rebuild-v1"' > acceptance.json
-tools/bin/repo-review dispatch acceptance.json --controller "$CONTROLLER" --revision "$REVISION"
+tools/bin/repo-review dispatch acceptance.json --controller "$CONTROLLER" \
+  --revision "$REVISION" --dispatch-ref main
 gh run list --repo "$CONTROLLER" --workflow review-repository.yml --commit "$REVISION" \
   --json databaseId,headSha,status,conclusion
 # Set RUN_ID from the matching dispatch; do not guess or silently choose a concurrent run.
@@ -40,9 +41,26 @@ After trusted cache profile activation, submit a request with
 effective plan and artifacts. Explicit promotion (one platform at a time):
 
 ```bash
+# Set RUN_ID to the inspected request-approval source run, not the earlier
+# secretless acceptance run. Select the exact completed attempt before download.
+ATTEMPT=$(gh api "repos/$CONTROLLER/actions/runs/$RUN_ID" --jq .run_attempt)
+tools/bin/repo-review report --controller "$CONTROLLER" --run "$RUN_ID" \
+  --attempt "$ATTEMPT" --output promotion-report
+REPORT=promotion-report/review-result.json
+SYSTEM=x86_64-linux
+jq -e --arg repo "$CONTROLLER" --argjson run "$RUN_ID" \
+  --argjson attempt "$ATTEMPT" \
+  '.plan.run_repository == $repo and .plan.run_id == $run and
+   .plan.run_attempt == $attempt and .plan.request.publication == "request-approval"' "$REPORT"
+REVISION=$(jq -er '.plan.controller.commit' "$REPORT")
+EFFECTIVE_PLAN_DIGEST=$(jq -er --arg system "$SYSTEM" \
+  '.platforms[$system].effective.digest | select(test("^[0-9a-f]{64}$"))' "$REPORT")
+BUNDLE_DIGEST=$(jq -er --arg system "$SYSTEM" \
+  '.bundle_digests[$system] | select(test("^[0-9a-f]{64}$"))' "$REPORT")
+# Inspect the exact validated platform report and approve both extracted digests.
 gh workflow run publish-review.yml --repo "$CONTROLLER" --ref main \
   -f run_id="$RUN_ID" -f attempt="$ATTEMPT" -f revision="$REVISION" \
-  -f system=x86_64-linux -f plan_digest="$EFFECTIVE_PLAN_DIGEST" \
+  -f system="$SYSTEM" -f plan_digest="$EFFECTIVE_PLAN_DIGEST" \
   -f bundle_digest="$BUNDLE_DIGEST"
 ```
 
