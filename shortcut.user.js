@@ -106,8 +106,13 @@ const setupActionsPage = async () => {
 
   const inputs = new URLSearchParams(match[2]);
 
-  (await query(document, "details > summary.btn")).click();
-  await query(document, "details .workflow-dispatch");
+  (
+    await query(
+      document,
+      'details > summary.btn, react-app.loaded [data-component="PH_Actions"] button[data-variant="primary"]',
+    )
+  ).click();
+  await query(document, ':is(details .workflow-dispatch, [role="dialog"]) [name="inputs[pr]"]');
 
   const setBranch = async branch => {
     (await query(document, "details .workflow-dispatch")).classList.add("old-branch");
@@ -117,7 +122,7 @@ const setupActionsPage = async () => {
   };
 
   const setInput = (name, value) => {
-    const selector = `details .workflow-dispatch [name='inputs[${name}]']`;
+    const selector = `:is(details .workflow-dispatch, [role="dialog"]) [name='inputs[${name}]']`;
     const input = document.querySelector(`${selector}:not([type=hidden])`);
 
     if (!input) {
@@ -141,7 +146,7 @@ const setupActionsPage = async () => {
 
   [...inputs].filter(([name]) => name !== "branch").forEach(([name, value]) => setInput(name, value));
 
-  document.querySelector("details .workflow-dispatch button[type=submit]").focus();
+  document.querySelector('details .workflow-dispatch button[type=submit], [role="dialog"] button[type=submit]').focus();
 };
 
 const setupPrPage = async () => {
