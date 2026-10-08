@@ -35,7 +35,7 @@ file-cache checks; they are unrelated to the existing production cache policy.
 
 Engine migration PR: <https://github.com/caniko/simit/pull/31>.
 
-The controller now pins Simit `fb0d92f12226e4191b94e9c026f5852f913f3db4`
+The original consolidation pinned Simit `fb0d92f12226e4191b94e9c026f5852f913f3db4`
 with its exact CI-generated content hash, preserving Nixpkgs
 `13043924aaa7375ce482ebe2494338e058282925`. Engine code, adapter, and Rust tests
 are owned by Simit; the controller owns policy, compatibility, and activation.
@@ -67,6 +67,26 @@ The external fixture recipe is now explicitly pinned in policy. There is no
 controller-fixture policy exemption. `ATTIC_SERVER`, `ATTIC_CACHE`, and
 `ATTIC_TOKEN` retain their names, without granting review publication authority
 from ordinary Simit prebuild/release configuration.
+
+## Dispatch and report-token corrections
+
+The controller now pins the qualified [Simit #33](https://github.com/caniko/simit/pull/33)
+source `6b58559e871fa4a169e8be33f1024775858eba81`, merged as
+`1ef8cbd0dd1abda4df80698f086919b1c9d341b3`. The Nixpkgs pin is preserved.
+The hosted production generator and controller lock were digest-verified before
+regeneration; a second generation check produced byte-identical owned workflows.
+
+Dispatch now requires a named `--dispatch-ref` alongside the exact reviewed
+`--revision`. The engine verifies that the branch or tag resolves to that SHA,
+and the generated workflow rejects a moved ref before checkout, retaining the
+revision binding in the OIDC-verified run evidence. A raw SHA is not a dispatch ref.
+
+The generated reusable controller declares the optional external-report
+`GH_TOKEN`. Both local compatibility callers explicitly forward that named secret;
+publication approval and cache credentials remain separately scoped. Build-wrapper
+publication requests are rejected because promotion authenticates only the direct
+controller workflow. Hosted controller CI validates the packaged engine, generator
+drift, workflows, compatibility requests, fixtures and actual signature retrieval.
 
 ## Readiness boundary
 

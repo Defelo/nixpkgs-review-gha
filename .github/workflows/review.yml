@@ -65,3 +65,5 @@ jobs:
     uses: ./.github/workflows/review-repository.yml
     with:
       request: ${{ needs.adapt.outputs.request }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}

@@ -8,11 +8,22 @@ on:
         description: Version 1 repo-review request JSON
         type: string
         required: true
+      controller_revision:
+        description: Expected full controller workflow SHA; rejects a moved dispatch ref
+        type: string
+        required: false
   workflow_call:
     inputs:
       request:
         type: string
         required: true
+      controller_revision:
+        type: string
+        required: false
+    secrets:
+      GH_TOKEN:
+        description: Optional report-only credential for exact-head comments
+        required: false
     outputs:
       plan_digest:
         value: ${{ jobs.resolve.outputs.digest }}
@@ -32,6 +43,8 @@ jobs:
       # accepted from an input/artifact. job_workflow_* identifies this called workflow.
       - id: identity
         shell: bash
+        env:
+          EXPECTED_CONTROLLER_REVISION: ${{ inputs.controller_revision }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -48,6 +61,8 @@ jobs:
             const match = /^([A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+)\/\.github\/workflows\/review-repository.yml@(.+)$/.exec(ref);
             if (!match || !/^[a-f0-9]{40}$/.test(sha)) throw new Error('invalid workflow identity');
             if (claims.job_workflow_ref && match[2] !== sha && !(match[1] === claims.repository && sha === claims.workflow_sha)) throw new Error('external workflow_call must pin a full reviewed SHA');
+            const expected = process.env.EXPECTED_CONTROLLER_REVISION;
+            if (expected && (!/^[a-f0-9]{40}$/.test(expected) || expected !== sha)) throw new Error('controller workflow revision differs from reviewed dispatch revision');
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `repository=${match[1]}\nrevision=${sha}\n`);
           })().catch(error => { console.error(error.message); process.exit(1); });
           NODE
@@ -166,7 +181,7 @@ jobs:
           retention-days: 14
   report:
     needs: [controller, resolve, collect]
-    if: ${{ always() && needs.collect.result != 'skipped' && needs.controller.outputs.repository == github.repository }}
+    if: ${{ always() && needs.collect.result != 'skipped' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:

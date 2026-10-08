@@ -49,7 +49,8 @@ nix run github:OWNER/nixpkgs-review-gha/CONTROLLER_SHA#repo-review -- example
 repo-review validate request.json
 repo-review plan request.json --controller OWNER/nixpkgs-review-gha \
   --revision CONTROLLER_SHA --root TRUSTED-CONTROLLER --output plan.json
-repo-review dispatch request.json --controller OWNER/nixpkgs-review-gha --revision CONTROLLER_SHA
+repo-review dispatch request.json --controller OWNER/nixpkgs-review-gha \
+  --revision CONTROLLER_SHA --dispatch-ref CONTROLLER_BRANCH_OR_TAG
 repo-review status --controller OWNER/nixpkgs-review-gha --run RUN_ID --wait-seconds 120
 repo-review report --controller OWNER/nixpkgs-review-gha --run RUN_ID --attempt 1 --output new-report-dir
 ```
