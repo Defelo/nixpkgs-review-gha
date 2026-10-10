@@ -42,6 +42,7 @@ jobs:
         with:
           token: ${{ secrets.GH_SELF_UPDATE_TOKEN }}
           fetch-depth: 0
+          persist-credentials: true
 
       - name: add upstream remote
         run: |
