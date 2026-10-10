@@ -1,4 +1,5 @@
 name: setup-nu
+description: set up nushell
 
 runs:
   using: composite

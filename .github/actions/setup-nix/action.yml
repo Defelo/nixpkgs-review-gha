@@ -1,4 +1,5 @@
 name: setup-nix
+description: set up Nix
 
 inputs:
   system:
