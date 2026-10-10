@@ -96,17 +96,11 @@ jobs:
       || (matrix.system == 'riscv64-linux' && 'ubuntu-24.04-riscv') }}
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            /.github/actions
-
       - name: setup nu
-        uses: ./.github/actions/setup-nu
+        uses: $/.github/actions/setup-nu
 
       - name: setup nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
         with:
           extra-nix-config: ${{ vars.EXTRA_NIX_CONFIG }}
           system: ${{ matrix.system }}
