@@ -8,7 +8,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
-      run: |
+      run: | # zizmor: ignore[github-env] -- GITHUB_PATH write is safe, there's no untrusted input
         set -euo pipefail
 
         version=0.113.1

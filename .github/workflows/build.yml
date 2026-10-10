@@ -120,7 +120,7 @@ jobs:
           if [[ ${{ inputs.allow-insecure }} = true ]]; then echo "NIXPKGS_ALLOW_INSECURE=1" >> "$GITHUB_ENV"; fi
 
       - name: nix build
-        run: >-
+        run: >- # zizmor: ignore[template-injection] -- workflow inputs are trusted
           nix build --keep-going -L ${{
             (inputs.allow-unfree || inputs.allow-insecure) && '--impure' || ''
           }} ${{ inputs.packages }}

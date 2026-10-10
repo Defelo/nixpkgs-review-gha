@@ -53,6 +53,11 @@
           ${lib.getExe pkgs.nushell} -c 'for x in (glob ${self}/**/*.nu) { print $"checking ($x)"; nu-check $x -d }'
           touch $out
         '';
+        zizmor = pkgs.runCommand "zizmor-check" { } ''
+          cp -r --no-preserve=mode ${self} repo
+          ${lib.getExe pkgs.zizmor} repo
+          touch $out
+        '';
       });
     };
 
