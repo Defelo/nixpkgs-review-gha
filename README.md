@@ -54,7 +54,7 @@ Follow these steps if you want nixpkgs-review-gha to push new packages to a [Cac
 3. [Create a new secret](../../settings/secrets/actions/new) with the name `CACHIX_AUTH_TOKEN` and set its value to your auth token. If you are using a self-signed cache, you also need to create a `CACHIX_SIGNING_KEY` secret and set its value to your private signing key.
 
 ### Push to Gradient Cache (optional)
-Follow these steps if you want nixpkgs-review-gha to push new packages to a [Gradient](https://github.com/wavelens/gradient) cache. Paths signed by cache.nixos.org are skipped. Note: If an Attic or Cachix cache is configured as well, the Gradient configuration is ignored.
+Follow these steps if you want nixpkgs-review-gha to push new packages to a [Gradient](https://github.com/wavelens/gradient) cache. Paths signed by cache.nixos.org are skipped. The cache is also added as a substituter, with the API key in `/etc/nix/netrc` for private caches. Note: If an Attic or Cachix cache is configured as well, nothing is pushed to the Gradient cache.
 
 1. Open Gradient. Go to "Settings" > "API Keys". Create an API key for a user with push rights to the cache.
 2. [Create a new variable](../../settings/variables/actions/new) named `GRADIENT_SERVER`. Set the value to your Gradient server URL (e.g. `https://gradient.example.com`).

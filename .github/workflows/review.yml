@@ -186,6 +186,9 @@ jobs:
           builders: ${{ inputs.builders != 'gha' && vars.BUILDERS || '' }}
           ssh-key: ${{ inputs.builders != 'gha' && secrets.SSH_KEY || '' }}
           ssh-cert: ${{ inputs.builders != 'gha' && secrets.SSH_CERT || '' }}
+          gradient-server: ${{ vars.GRADIENT_SERVER }}
+          gradient-cache: ${{ vars.GRADIENT_CACHE }}
+          gradient-api-key: ${{ secrets.GRADIENT_API_KEY }}
 
       - name: clone nixpkgs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

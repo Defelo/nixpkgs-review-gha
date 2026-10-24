@@ -20,6 +20,15 @@ inputs:
   ssh-cert:
     type: string
     default: ""
+  gradient-server:
+    type: string
+    default: ""
+  gradient-cache:
+    type: string
+    default: ""
+  gradient-api-key:
+    type: string
+    default: ""
 
 runs:
   using: composite
@@ -71,6 +80,36 @@ runs:
         echo -e "$SSH_CERT" | sudo tee /etc/nix/ssh_id-cert.pub > /dev/null
         sudo chmod 400 /etc/nix/ssh_id{,-cert.pub}
 
+    - name: prepare gradient cache config
+      id: gradient
+      if: ${{ inputs.gradient-server != '' && inputs.gradient-cache != '' }}
+      env:
+        GRADIENT_SERVER: ${{ inputs.gradient-server }}
+        GRADIENT_CACHE: ${{ inputs.gradient-cache }}
+        GRADIENT_API_KEY: ${{ inputs.gradient-api-key }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        server="${GRADIENT_SERVER%/}"
+        key_url="$server/api/v1/caches/$GRADIENT_CACHE/public-key"
+        if [[ -n "$GRADIENT_API_KEY" ]]; then
+          host="${server#*://}"
+          host="${host%%[:/]*}"
+          sudo mkdir -p /etc/nix/
+          printf 'machine %s\nlogin gradient\npassword %s\n' "$host" "$GRADIENT_API_KEY" | sudo tee -a /etc/nix/netrc > /dev/null
+          sudo chmod 600 /etc/nix/netrc
+          response="$(curl -fsS -H "Authorization: Bearer $GRADIENT_API_KEY" "$key_url")"
+        else
+          response="$(curl -fsS "$key_url")"
+        fi
+        public_key="$(sed -E 's/.*"message":"([^"]*)".*/\1/' <<< "$response")"
+        {
+          echo "nix-config<<EOF"
+          echo "extra-substituters = $server/cache/$GRADIENT_CACHE"
+          echo "extra-trusted-public-keys = $public_key"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
     - name: install nix
       uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       with:
@@ -85,6 +124,7 @@ runs:
           extra-system-features = uid-range
           sandbox = ${{ inputs.sandbox }}
           system = ${{ inputs.system }}
+          ${{ steps.gradient.outputs.nix-config }}
           ${{ inputs.extra-nix-config }}
 
     - name: create build-dir
