@@ -204,6 +204,9 @@ jobs:
           CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
           CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
+          GRADIENT_SERVER: ${{ vars.GRADIENT_SERVER }}
+          GRADIENT_CACHE: ${{ vars.GRADIENT_CACHE }}
+          GRADIENT_API_KEY: ${{ secrets.GRADIENT_API_KEY }}
           PR_JSON: ${{ needs.prepare.outputs.pr }}
           IDENTIFY_STILL_FAILING_PACKAGES: ${{ vars.IDENTIFY_STILL_FAILING_PACKAGES }}
           IDENTIFY_UNSUPPORTED_PACKAGES: ${{ vars.IDENTIFY_UNSUPPORTED_PACKAGES }}
