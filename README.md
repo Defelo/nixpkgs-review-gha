@@ -8,7 +8,7 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 - No local setup
 - Automatically post results on the reviewed pull request
 - Optionally start an [Upterm](https://upterm.dev/) session after nixpkgs-review has finished to allow interactive testing/debugging via SSH
-- Push new packages to an [Attic](https://github.com/zhaofengli/attic) or [Cachix](https://www.cachix.org/) cache
+- Push new packages to an [Attic](https://github.com/zhaofengli/attic), [Cachix](https://www.cachix.org/) or [Gradient](https://github.com/wavelens/gradient) cache
 - After a successful review, automatically mark the PR as ready for review, approve it, or merge it (directly or via the [nixpkgs-merge-bot](https://github.com/NixOS/nixpkgs-merge-bot))
 - Optionally use [Nix remote builders](https://nix.dev/manual/nix/latest/advanced-topics/distributed-builds) (either in addition to or instead of the local GitHub Actions runner).
 - Add a "Run nixpkgs-review" shortcut to pull request pages in nixpkgs
@@ -52,6 +52,14 @@ Follow these steps if you want nixpkgs-review-gha to push new packages to a [Cac
 1. Go to https://app.cachix.org/ and set up your binary cache.
 2. [Create a new variable](../../settings/variables/actions/new) with the name `CACHIX_CACHE` and set it to the name of your Cachix cache.
 3. [Create a new secret](../../settings/secrets/actions/new) with the name `CACHIX_AUTH_TOKEN` and set its value to your auth token. If you are using a self-signed cache, you also need to create a `CACHIX_SIGNING_KEY` secret and set its value to your private signing key.
+
+### Push to Gradient Cache (optional)
+Follow these steps if you want nixpkgs-review-gha to push new packages to a [Gradient](https://github.com/wavelens/gradient) cache. Paths signed by cache.nixos.org are skipped. The cache is also added as a substituter, with the API key in `/etc/nix/netrc` for private caches. Note: If an Attic or Cachix cache is configured as well, nothing is pushed to the Gradient cache.
+
+1. Open Gradient. Go to "Settings" > "API Keys". Create an API key for a user with push rights to the cache.
+2. [Create a new variable](../../settings/variables/actions/new) named `GRADIENT_SERVER`. Set the value to your Gradient server URL (e.g. `https://gradient.example.com`).
+3. [Create a new variable](../../settings/variables/actions/new) named `GRADIENT_CACHE`. Set the value to your cache name.
+4. [Create a new secret](../../settings/secrets/actions/new) named `GRADIENT_API_KEY`. Set the value to the API key from step 1.
 
 ### Extra Nix Config (optional)
 If you have additional configuration you want to append to `/etc/nix/nix.conf`, you can [create a new variable](../../settings/variables/actions/new) with the name `EXTRA_NIX_CONFIG`.
