@@ -1,8 +1,7 @@
 name: build
 run-name: "build ${{ inputs.packages }}"
 
-permissions:
-  id-token: write
+permissions: {}
 
 on:
   workflow_dispatch:
@@ -46,6 +45,26 @@ on:
         required: true
         type: boolean
         default: false
+      codespace:
+        description: "Build x86_64-linux in a GitHub Codespace (max 12h), auto uses it if the build won't fit into 6h"
+        required: true
+        type: choice
+        default: auto
+        options:
+          - auto
+          - force
+          - disabled
+      codespace-size:
+        description: "Size of the codespace"
+        required: true
+        type: choice
+        default: 4-core
+        options:
+          - 2-core
+          - 4-core
+          - 8-core
+          - 16-core
+          - 32-core
       allow-unfree:
         description: "Allow unfree packages"
         required: true
@@ -72,7 +91,189 @@ on:
         default: false
 
 jobs:
+  # Checked in a job of its own because the estimate evaluates the packages to build and must not get to see the token
+  prepare:
+    if: ${{ inputs.x86_64-linux && inputs.codespace == 'auto' && inputs.builders != 'remote' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has-codespace-token: ${{ steps.codespace-token.outputs.present }}
+
+    steps:
+      - name: check codespace token
+        id: codespace-token
+        run: echo "present=${HAS_CODESPACE_TOKEN}" >> "${GITHUB_OUTPUT}"
+        env:
+          HAS_CODESPACE_TOKEN: ${{ secrets.CODESPACE_TOKEN != '' && '1' || '0' }}
+
+  # Guess from the derivations that have to be built whether the x86_64-linux build fits into a hosted runner
+  estimate:
+    # Without a token there is no codespace to use, and with remote builders only the hosted runner does not do the building
+    if: ${{ inputs.x86_64-linux && inputs.codespace == 'auto' && inputs.builders != 'remote' && needs.prepare.outputs.has-codespace-token == '1' }}
+    needs: [prepare]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # A failing estimate must not fail the build, which then simply runs on a hosted runner
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      codespace: ${{ steps.estimate.outputs.codespace }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /codespace
+            /review/gha.nu
+
+      - name: setup nu
+        uses: $/.github/actions/setup-nu
+
+      - name: setup nix
+        uses: $/.github/actions/setup-nix
+        with:
+          extra-nix-config: ${{ vars.EXTRA_NIX_CONFIG }}
+          system: x86_64-linux
+          reclaim-space: "false"
+
+      - run: nu codespace/estimate.nu
+        id: estimate
+        env:
+          WORKFLOW: build
+          PACKAGES: ${{ inputs.packages }}
+          ALLOW_UNFREE: ${{ inputs.allow-unfree }}
+          ALLOW_INSECURE: ${{ inputs.allow-insecure }}
+          LIMIT_MINUTES: ${{ vars.CODESPACE_ESTIMATE_LIMIT }}
+
+  codespace:
+    if: ${{ !cancelled() && inputs.x86_64-linux && (inputs.codespace == 'force' || needs.estimate.outputs.codespace == 'true') }}
+    needs: [estimate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      name: ${{ steps.start.outputs.name }}
+      label: ${{ steps.start.outputs.label }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /codespace
+            /review/gha.nu
+
+      - name: setup nu
+        uses: $/.github/actions/setup-nu
+
+      - run: nu codespace/start.nu
+        id: start
+        env:
+          GH_TOKEN: ${{ secrets.CODESPACE_TOKEN }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          MACHINE: ${{ inputs.codespace-size }}
+          IDLE_TIMEOUT: "30"
+          EXTRA_NIX_CONFIG: ${{ vars.EXTRA_NIX_CONFIG }}
+
+  # Two guards take turns because a job can run for at most 6 hours
+  codespace-guard:
+    if: ${{ needs.codespace.result == 'success' }}
+    needs: [codespace]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    outputs:
+      continue: ${{ steps.guard.outputs.continue }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /codespace
+            /review/gha.nu
+
+      - name: setup nu
+        uses: $/.github/actions/setup-nu
+
+      - run: nu codespace/guard.nu
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.CODESPACE_TOKEN }}
+          NAME: ${{ needs.codespace.outputs.name }}
+          BUDGET_MINUTES: "350"
+
+  codespace-guard-2:
+    # Also takes over when the first guard crashed, because the build keeps running in the codespace
+    if: ${{ !cancelled() && needs.codespace.result == 'success' && (needs.codespace-guard.outputs.continue == 'true' || needs.codespace-guard.result == 'failure') }}
+    needs: [codespace, codespace-guard]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /codespace
+            /review/gha.nu
+
+      - name: setup nu
+        uses: $/.github/actions/setup-nu
+
+      - run: nu codespace/guard.nu
+        env:
+          GH_TOKEN: ${{ secrets.CODESPACE_TOKEN }}
+          NAME: ${{ needs.codespace.outputs.name }}
+          BUDGET_MINUTES: "350"
+
+  codespace-stop:
+    if: ${{ always() && needs.codespace.result != 'skipped' }}
+    needs: [codespace, codespace-guard, codespace-guard-2]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /codespace
+            /review/gha.nu
+
+      - name: setup nu
+        uses: $/.github/actions/setup-nu
+
+      - run: nu codespace/stop.nu
+        env:
+          GH_TOKEN: ${{ secrets.CODESPACE_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+
   build:
+    needs: [codespace]
+    if: ${{ !cancelled() }}
+    permissions:
+      id-token: write
+    env:
+      CODESPACE: ${{ matrix.system == 'x86_64-linux' && needs.codespace.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -89,17 +290,26 @@ jobs:
           - system: ${{ inputs.aarch64-darwin == 'no' && 'aarch64-darwin' || '' }}
           - system: ${{ !inputs.riscv64-linux && 'riscv64-linux' || '' }}
     runs-on: >-
-      ${{ (matrix.system == 'x86_64-linux' && 'ubuntu-latest')
+      ${{ (matrix.system == 'x86_64-linux' && (needs.codespace.result == 'success' && needs.codespace.outputs.label || 'ubuntu-latest'))
       || (matrix.system == 'aarch64-linux' && 'ubuntu-24.04-arm')
       || (matrix.system == 'x86_64-darwin' && 'macos-latest')
       || (matrix.system == 'aarch64-darwin' && 'macos-latest')
       || (matrix.system == 'riscv64-linux' && 'ubuntu-24.04-riscv') }}
+    # Hosted runners are limited to 6 hours, but a codespace is only stopped by GitHub after 12 hours
+    timeout-minutes: ${{ matrix.system == 'x86_64-linux' && needs.codespace.result == 'success' && 705 || 360 }}
 
     steps:
+      - name: ensure codespace
+        if: ${{ matrix.system == 'x86_64-linux' && (needs.codespace.result == 'failure' || needs.codespace.result == 'cancelled') }}
+        run: |
+          echo "::error title=Codespace unavailable::The codespace could not be started, see the codespace job for details."
+          exit 1
+
       - name: setup nu
         uses: $/.github/actions/setup-nu
 
       - name: setup nix
+        if: ${{ env.CODESPACE != 'true' }}
         uses: $/.github/actions/setup-nix
         with:
           extra-nix-config: ${{ vars.EXTRA_NIX_CONFIG }}
@@ -126,14 +336,18 @@ jobs:
           }} ${{ inputs.packages }}
         if: ${{ inputs.packages != '' }}
 
+      - name: upterm is not supported in codespaces
+        if: ${{ inputs.upterm && env.CODESPACE == 'true' }}
+        run: echo "::warning title=upterm skipped::The runner in the codespace has no root access, so no upterm session is started."
+
       - name: set GITHUB_TOKEN
-        if: ${{ inputs.upterm }}
+        if: ${{ inputs.upterm && env.CODESPACE != 'true' }}
         run: echo "GITHUB_TOKEN=${GITHUB_TOKEN}" >> "$GITHUB_ENV"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: start upterm session
-        if: ${{ inputs.upterm }}
+        if: ${{ inputs.upterm && env.CODESPACE != 'true' }}
         uses: owenthereal/action-upterm@b9dfa526f890bbd5162d781f8d9c69b97731d73d # v2.7.0
         with:
           limit-access-to-actor: true
