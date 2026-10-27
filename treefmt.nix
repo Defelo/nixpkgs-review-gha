@@ -34,6 +34,15 @@
     ];
   };
 
+  formatter.shfmt = {
+    command = lib.getExe pkgs.shfmt;
+    includes = [ "*.sh" ];
+    options = [
+      "--write"
+      "--indent=2"
+    ];
+  };
+
   formatter.rustfmt = {
     command = lib.getExe pkgs.rustfmt;
     includes = [ "*.rs" ];
