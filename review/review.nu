@@ -7,7 +7,7 @@ let pr = $env.PR_JSON | from json
 let head = $pr.head.sha
 let base = $pr.base.sha
 let merge = $pr.merge_commit_sha
-let jobsArg = if $inputs.builders == "remote" { "-j0" } else { "" }
+let jobsArg = if $inputs.builders == "remote" and $env.CODESPACE? != "true" { "-j0" } else { "" }
 let system = nix config show system
 let buildArgs = --build-args=($"-L ($jobsArg) ($inputs.extra-build-args)")
 

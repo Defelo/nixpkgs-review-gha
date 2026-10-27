@@ -33,6 +33,8 @@ const reviewDefaults = ({
       targetsStableRelease && (!hasRebuilds || hasDarwinRebuilds) ? `yes_sandbox_${darwinSandbox}` : "no",
     "aarch64-darwin": !hasRebuilds || hasDarwinRebuilds ? `yes_sandbox_${darwinSandbox}` : "no",
     // "riscv64-linux": false,
+    // "codespace": "auto",
+    // "codespace-size": "4-core",
     // "extra-args": "",
     // "push-to-cache": true,
     // "upterm": false,
