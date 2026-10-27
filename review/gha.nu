@@ -14,6 +14,10 @@ def "gha log" [level: string, args: record, msg: string] {
   | print $"::($level) ($in)::($msg)"
 }
 
+export def "gha notice" [--title: string, msg: string] {
+  gha log notice { title: $title } $msg
+}
+
 export def "gha warning" [--title: string, msg: string] {
   gha log warning { title: $title } $msg
 }
