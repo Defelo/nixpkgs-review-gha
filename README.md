@@ -11,6 +11,7 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 - Push new packages to an [Attic](https://github.com/zhaofengli/attic) or [Cachix](https://www.cachix.org/) cache
 - After a successful review, automatically mark the PR as ready for review, approve it, or merge it (directly or via the [nixpkgs-merge-bot](https://github.com/NixOS/nixpkgs-merge-bot))
 - Optionally use [Nix remote builders](https://nix.dev/manual/nix/latest/advanced-topics/distributed-builds) (either in addition to or instead of the local GitHub Actions runner).
+- Optionally run the `x86_64-linux` build in your own [GitHub Codespace](https://github.com/features/codespaces) to get past the 6 hour limit of hosted runners (up to 12 hours), automatically when the build is estimated not to fit
 - Add a "Run nixpkgs-review" shortcut to pull request pages in nixpkgs
 
 ## Setup
@@ -96,6 +97,67 @@ ssh-ng://YOUR_USERNAME@build-box.nix-community.org x86_64-linux /etc/nix/ssh_id 
 ssh-ng://YOUR_USERNAME@aarch64-build-box.nix-community.org aarch64-linux /etc/nix/ssh_id 20 - benchmark,big-parallel,gccarch-armv7-a,gccarch-armv8-a,kvm,nixos-test,uid-range - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUc5dXlmaHlsaStCUnRrNjR5K25pcXRiK3NLcXVSR0daODdmNFlSYzhFRTE=
 ssh-ng://YOUR_USERNAME@darwin-build-box.nix-community.org aarch64-darwin /etc/nix/ssh_id 2 - big-parallel - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUtNSGhsY243ZlVwVXVpT0ZlSWhEcUJ6Qk5Gc2JOcXErTnB6dUdYM2U2enY=
 ```
+
+### Long-Running Builds in a Codespace (optional)
+Jobs on GitHub-hosted runners are killed after 6 hours, which is not enough for some packages (for example Firefox).
+For these cases the `x86_64-linux` job of the [review](../../actions/workflows/review.yml) and [build](../../actions/workflows/build.yml) workflows can run in a [GitHub Codespace](https://docs.github.com/en/codespaces) of your own instead.
+GitHub only stops a codespace after 12 hours, so the limit is raised to just under 12 hours, and depending on your plan a codespace can offer more cores than a hosted runner.
+
+The `codespace` input of both workflows has three options:
+- `auto` (the default) estimates whether the `x86_64-linux` build fits into the 6 hours of a hosted runner and only uses a codespace if it does not, see [below](#how-auto-decides).
+  It does nothing as long as the `CODESPACE_TOKEN` secret is not set up, so the workflows behave as before.
+- `force` always uses a codespace for `x86_64-linux`, and fails if it cannot be started.
+- `disabled` always uses a hosted runner.
+
+The `codespace-size` input selects the machine size of the codespace.
+When a codespace is used, the workflow creates it for your fork, starts an ephemeral self-hosted runner in it, runs the `x86_64-linux` job there and deletes the codespace again afterwards.
+All other systems keep running on their usual runners.
+Because GitHub stops idle codespaces and only connected clients count as activity, the `codespace-guard` jobs keep an SSH session to the codespace open while the build is running.
+
+To set this up, [create a **classic** personal access token](https://github.com/settings/tokens/new) with the `repo` and `codespace` scopes, [create a new secret](../../settings/secrets/actions/new) with the name `CODESPACE_TOKEN` and set its value to the token.
+The `repo` scope is needed to register the runner in your fork and the `codespace` scope to create, reach and delete the codespace.
+Fine-grained tokens have not been tested.
+
+Codespaces are billed to your account, see [the GitHub documentation](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) for the included quota and prices.
+Which machine sizes are available depends on your plan.
+If the one you selected in `codespace-size` is not, the workflow fails early and lists the ones you can use.
+
+#### How `auto` decides
+The `estimate` job asks Nix which derivations of the build are not available from a binary cache (`nix build --dry-run`), because only those have to be compiled.
+Those are often not the packages you are reviewing but dependencies that no binary cache has yet, for example Chromium for a pull request that touches a single package that uses it.
+For reviews, the packages to build are taken from the evaluation of the pull request in the nixpkgs CI, which is the same data that nixpkgs-review uses.
+
+The estimated time on a hosted runner (4 cores) is the sum of the following:
+- 5 hours for every derivation that nixpkgs flags as `big-parallel`, which covers the kernel, Chromium, Electron, LibreOffice, Firefox, LLVM, PyTorch and similar
+- 3 minutes for every other derivation, or half a minute for downloads and helper derivations that are only assembled locally
+- 1.5 times the duration of the newest real build on [Hydra](https://hydra.nixos.org) instead, if there is one for a package with the same name and that is more (a stretch of time that Hydra reports for several packages is only counted once)
+- 20 minutes for setting up the job
+
+If the sum exceeds 5 hours, a codespace is used.
+To change that limit, [create a variable](../../settings/variables/actions/new) with the name `CODESPACE_ESTIMATE_LIMIT` and the number of minutes as its value.
+The numbers behind the decision are shown in the summary of the `estimate` job.
+A pull request that rebuilds more than 1500 packages or needs more than 400 derivations to be built is not looked at any further and uses a codespace.
+
+This is only a guess, so keep the following in mind:
+- Hydra only reports how long the job of a package itself took.
+  It does not know about the dependencies of wrappers like Chromium or LibreOffice and reuses earlier builds instead of building them again, so it can only price part of the packages.
+  This is why the `big-parallel` flag of nixpkgs does most of the work.
+- A build that hangs cannot be predicted.
+- If you select remote builders only (`builders`), the hosted runner does not do the building, so `auto` does not estimate and uses the hosted runner.
+- If the nixpkgs CI has not evaluated the pull request yet or the estimate fails, the build uses a hosted runner.
+- As soon as the `CODESPACE_TOKEN` secret exists, `auto` adds the time for the estimate (usually a few minutes) before the jobs start.
+  Choose `force` or `disabled` to skip it.
+
+Some things to keep in mind:
+- Only `x86_64-linux` is supported, because codespaces run on x86_64 machines.
+- The `builders` and `upterm` inputs have no effect on the codespace.
+  To debug a running build, connect to the codespace with `gh codespace ssh -c <name>` instead (the name is printed in the log of the `codespace` job).
+- The Nix store and the build directories live on the large temporary disk of the codespace, but a build that fills it up will still fail.
+- The value of the token is only passed to the jobs that manage the codespace, never to the jobs that evaluate or build the pull request.
+  The build runs as an unprivileged user without root access and cannot read the secrets of your codespace.
+- The workflow deletes the codespace when the job is done, even if it failed or was cancelled.
+  As a safety net the codespace is stopped after 30 minutes without a guard connection and deleted 60 minutes after that.
+  Codespaces created by the workflow are named `nrgha-<run id>-<attempt>`, so you can find and delete leftovers on the [codespaces page](https://github.com/codespaces).
 
 ### Shortcuts on nixpkgs PR pages (optional)
 Add [`shortcut.user.js`](shortcut.user.js) as a userscript in your browser for `https://github.com/` for example using the [User JavaScript and CSS chrome extension](https://chromewebstore.google.com/detail/user-javascript-and-css/nbhcbdghjpllgmfilhnhkllmkecfmpld) or [Violentmonkey](https://violentmonkey.github.io/).
