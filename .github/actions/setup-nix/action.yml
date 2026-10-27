@@ -20,12 +20,15 @@ inputs:
   ssh-cert:
     type: string
     default: ""
+  reclaim-space:
+    type: string
+    default: "true"
 
 runs:
   using: composite
   steps:
     - name: reclaim space (linux)
-      if: runner.os == 'Linux' && inputs.system != 'riscv64-linux'
+      if: runner.os == 'Linux' && inputs.system != 'riscv64-linux' && inputs.reclaim-space == 'true'
       uses: wimpysworld/nothing-but-nix@baf7355748bb5651f08b839669d6bb39051b2874 # main
       with:
         hatchet-protocol: rampage
