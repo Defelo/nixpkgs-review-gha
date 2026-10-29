@@ -130,9 +130,10 @@ jobs:
         env:
           SYSTEM: ${{ matrix.system }}
           PLAN_DIGEST: ${{ needs.resolve.outputs.digest }}
+          COMPILER_CACHE_OPT_IN: ${{ vars.REPO_REVIEW_COMPILER_CACHE }}
         run: |
           test "$(jq -r .digest metadata/plan.json)" = "$PLAN_DIGEST"
-          tools/bin/repo-review build --plan metadata/plan.json --system "$SYSTEM" --output "$PWD/platform"
+          tools/bin/repo-review build --plan metadata/plan.json --system "$SYSTEM" --output "$PWD/platform" --compiler-cache-opt-in "$COMPILER_CACHE_OPT_IN"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ always() }}
         with:
