@@ -77,12 +77,12 @@ runs:
         # Putting build-dir in /nix is a workaround for https://github.com/wimpysworld/nothing-but-nix/issues/18
         extra_nix_config: |
           accept-flake-config = true
-          auto-allocate-uids = true
+          ${{ runner.os == 'Linux' && 'auto-allocate-uids = true' || '' }}
           build-dir = /nix/build
           builders = @/etc/nix/machines
           builders-use-substitutes = true
           extra-experimental-features = auto-allocate-uids cgroups flakes nix-command
-          extra-system-features = uid-range
+          ${{ runner.os == 'Linux' && 'extra-system-features = uid-range' || '' }}
           sandbox = ${{ inputs.sandbox }}
           system = ${{ inputs.system }}
           ${{ inputs.extra-nix-config }}
