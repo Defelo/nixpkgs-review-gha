@@ -62,7 +62,7 @@ if $pushToAttic or $pushToCachix {
     } else if $pushToCachix {
       with-env { CACHIX_SIGNING_KEY: ($env.CACHIX_SIGNING_KEY | default -e null) } {
         $paths | str join "\n" | cachix push $env.CACHIX_CACHE
-        http get -H { Authorization: $"Bearer ($env.ATTIC_TOKEN)" } $"https://app.cachix.org/api/v1/cache/($env.CACHIX_CACHE)"
+        http get -H { Authorization: $"Bearer ($env.CACHIX_AUTH_TOKEN)" } $"https://app.cachix.org/api/v1/cache/($env.CACHIX_CACHE)"
         | select uri publicSigningKeys isPublic
         | update publicSigningKeys { first }
         | rename substituter_endpoint public_key is_public
