@@ -56,6 +56,8 @@
         zizmor = pkgs.runCommand "zizmor-check" { } ''
           cp -r --no-preserve=mode ${self} repo
           ${lib.getExe pkgs.zizmor} repo
+          ${lib.getExe pkgs.gitMinimal} init repo -b main
+          (cd repo && ${lib.getExe pkgs.gh-actions-lock} --verify-local)
           touch $out
         '';
       });
