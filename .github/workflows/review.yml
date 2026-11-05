@@ -1,15 +1,14 @@
 name: review
 run-name: >-
   review #${{ inputs.pr }}${{
-    case(
-      inputs.extra-args != '' && inputs.extra-build-args != '',
-      format(' ({0} --build-args="{1}")', inputs.extra-args, inputs.extra-build-args),
-      inputs.extra-args != '',
-      format(' ({0})', inputs.extra-args),
-      inputs.extra-build-args != '',
-      format(' (--build-args="{0}")', inputs.extra-build-args),
-      ''
-    )
+    (inputs.tests || inputs.extra-args != '' || inputs.extra-build-args != '') && format(
+      ' ({0}{1}{2}{3}{4})',
+      inputs.tests && '--tests' || '',
+      inputs.tests && (inputs.extra-args != '' || inputs.extra-build-args != '') && ' ' || '',
+      inputs.extra-args,
+      (inputs.tests || inputs.extra-args != '') && inputs.extra-build-args != '' && ' ' || '',
+      inputs.extra-build-args != '' && format('--build-args="{0}"', inputs.extra-build-args) || '',
+    ) || ''
   }}
 
 permissions: {}
@@ -75,6 +74,11 @@ on:
           - "gha"
           - "remote"
           - "both"
+      tests:
+        description: "Build tests of affected packages"
+        required: true
+        type: boolean
+        default: false
       extra-args:
         description: "nixpkgs-review extra args"
         required: false
