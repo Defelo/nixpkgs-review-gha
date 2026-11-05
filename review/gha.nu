@@ -52,11 +52,13 @@ export def "gha review-inputs" [] {
     riscv64-linux
     allow-unfree
     allow-insecure
+    tests
     push-to-cache
     upterm
     post-result
   ] { $in == "true" }
   | update pr { into int }
+  | update extra-args {|inputs| prepend ([--tests] | where { $inputs.tests }) | compact -e | str join ' ' }
   | insert extra-args-raw { $in.extra-args }
   | update extra-args { $"[($in)]" | from nuon }
 }
