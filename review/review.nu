@@ -3,6 +3,7 @@ use gha.nu *
 let inputs = gha review-inputs
 let pushToAttic = $inputs.push-to-cache and $env.ATTIC_SERVER != '' and $env.ATTIC_CACHE != ''
 let pushToCachix = $inputs.push-to-cache and $env.CACHIX_CACHE != ''
+let pushToGradient = $inputs.push-to-cache and $env.GRADIENT_SERVER != '' and $env.GRADIENT_CACHE != ''
 let pr = $env.PR_JSON | from json
 let head = $pr.head.sha
 let base = $pr.base.sha
@@ -23,6 +24,7 @@ gha group "install packages" {
   [ nixpkgs-review ]
   | if $pushToAttic { $in ++ [ attic-client ] } else { }
   | if $pushToCachix { $in ++ [ cachix ] } else { }
+  | if $pushToGradient { $in ++ [ gradient-cli ] } else { }
   | each { $".#($in)" }
   | nix profile add --system $system ...$in --builders ''
 }
@@ -43,7 +45,7 @@ gha group $"run nixpkgs-review ($inputs.extra-args-raw) ($buildArgs)" {
 let reviewDir = $"~/.cache/nixpkgs-review/pr-($inputs.pr)" | path expand
 let reportJson = $"($reviewDir)/report.json"
 
-if $pushToAttic or $pushToCachix {
+if $pushToAttic or $pushToCachix or $pushToGradient {
   gha group "push results to cache" {
     let paths = glob $"($reviewDir)/results/*" | path expand
     if ($paths | is-empty) { return }
@@ -66,6 +68,23 @@ if $pushToAttic or $pushToCachix {
         | select uri publicSigningKeys isPublic
         | update publicSigningKeys { first }
         | rename substituter_endpoint public_key is_public
+      }
+    } else if $pushToGradient {
+      let server = $env.GRADIENT_SERVER | str trim -r -c '/'
+      gradient config server $server
+      gradient config authtoken $env.GRADIENT_API_KEY
+
+      nix path-info -r --sigs ...$paths
+      | lines
+      | where $it !~ 'cache.nixos.org-1:'
+      | each { split row -r '\s+' | first }
+      | if ($in | is-not-empty) { gradient cache upload --no-closure $env.GRADIENT_CACHE ...$in }
+
+      let substituter = $"($server)/cache/($env.GRADIENT_CACHE)"
+      {
+        substituter_endpoint: $substituter
+        public_key: (gradient --json cache show $env.GRADIENT_CACHE | from json | get message.public_key)
+        is_public: (http get --full --allow-errors $"($substituter)/nix-cache-info" | $in.status == 200)
       }
     }
 
