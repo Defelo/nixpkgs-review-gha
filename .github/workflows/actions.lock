@@ -5,7 +5,7 @@ version: 'v0.0.3'
 workflows:
     '.github/workflows/build.yml':
         - 'cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24'
-        - 'owenthereal/action-upterm@95a37de421619d5caf052b4c796c894b1f663afb'
+        - 'owenthereal/action-upterm@6c2d60e09009f59cb4c45c88767c78701f14d121'
         - 'srz-zumix/post-run-action@42756f7452b9439d0365b7e087b2c364f54209c6'
         - 'wimpysworld/nothing-but-nix@baf7355748bb5651f08b839669d6bb39051b2874'
     '.github/workflows/check.yml':
@@ -19,7 +19,7 @@ workflows:
         - 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
         - 'cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24'
-        - 'owenthereal/action-upterm@95a37de421619d5caf052b4c796c894b1f663afb'
+        - 'owenthereal/action-upterm@6c2d60e09009f59cb4c45c88767c78701f14d121'
         - 'srz-zumix/post-run-action@42756f7452b9439d0365b7e087b2c364f54209c6'
         - 'wimpysworld/nothing-but-nix@baf7355748bb5651f08b839669d6bb39051b2874'
     '.github/workflows/self-update.yml':
@@ -45,9 +45,9 @@ dependencies:
         commit: 'sha1-13d8dd58da0234aa297dedd986986ccb8e7f3e24'
         owner_id: 36824654
         repo_id: 212301524
-    'owenthereal/action-upterm@95a37de421619d5caf052b4c796c894b1f663afb':
-        ref: 'v2.8.0'
-        commit: 'sha1-95a37de421619d5caf052b4c796c894b1f663afb'
+    'owenthereal/action-upterm@6c2d60e09009f59cb4c45c88767c78701f14d121':
+        ref: 'v2.8.1'
+        commit: 'sha1-6c2d60e09009f59cb4c45c88767c78701f14d121'
         owner_id: 169064
         repo_id: 797886005
     'ryanccn/attic-action@dc99f5eb1d5c0495aa26f7b56337b30011fa153e':
