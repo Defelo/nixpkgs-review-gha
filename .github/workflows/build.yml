@@ -134,6 +134,6 @@ jobs:
 
       - name: start upterm session
         if: ${{ inputs.upterm }}
-        uses: owenthereal/action-upterm@95a37de421619d5caf052b4c796c894b1f663afb # v2.8.0
+        uses: owenthereal/action-upterm@6c2d60e09009f59cb4c45c88767c78701f14d121 # v2.8.1
         with:
           limit-access-to-actor: true
