@@ -7,7 +7,7 @@ run-name: >-
       inputs.tests && (inputs.extra-args != '' || inputs.extra-build-args != '') && ' ' || '',
       inputs.extra-args,
       (inputs.tests || inputs.extra-args != '') && inputs.extra-build-args != '' && ' ' || '',
-      inputs.extra-build-args != '' && format('--build-args="{0}"', inputs.extra-build-args) || '',
+      inputs.extra-build-args != '' && format('--build-args="{0}"', inputs.extra-build-args) || ''
     ) || ''
   }}
 
