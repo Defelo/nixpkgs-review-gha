@@ -16,14 +16,29 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 ## Setup
 1. [Fork](https://github.com/Defelo/nixpkgs-review-gha/fork) this repository.
 2. In your fork, go to the [Actions](../../actions) tab and enable GitHub Actions workflows.
-3. If you want to set up [automatic self-updates](#automatic-self-updates-optional), please enable the `self-update` workflow ([Actions / `self-update`](../../actions/workflows/self-update.yml) > `...` button (top right corner) > `Enable workflow`).
+3. Set up the [optional features](#optional-features) you want as documented below. It is recommended (though not required) to at least set up [automatic self-updates](#automatic-self-updates) to keep your fork up-to-date.
 
-### Post Results / Auto Approve/Merge (optional)
+## Usage
+1. Open the [review workflow in the "Actions" tab](../../actions/workflows/review.yml)
+2. Click on "Run workflow"
+3. Enter the number of the pull request in nixpkgs you would like to review and click on "Run workflow"
+4. Reload the page if necessary and click on the review run to see the logs
+
+## Optional Features
+
+### Automatic Self-Updates
+If you want your fork to update itself on a regular basis, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+1. Go to <https://github.com/settings/personal-access-tokens> and generate a new **Fine-grained token** with access to only your fork ("Repository access" > "Only select repositories") and "Read and write" permissions for both "Contents" and "Workflows".
+2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_SELF_UPDATE_TOKEN` and set its value to the personal access token you generated before.
+3. Enable the `self-update` workflow ([Actions / `self-update`](../../actions/workflows/self-update.yml) > `Enable workflow`).
+
+### Post Results / Auto Approve/Merge
 nixpkgs-review-gha can automatically post the results as a comment on the reviewed pull requests and approve the PR after a successful review out of the box by using an [nrgha-api server](api).
 The default instance will use the [@nixpkgs-review-gha](https://github.com/nixpkgs-review-gha) account to create its report comments.
 If you want to host and use your own nrgha-api instance, you can [create a new variable](../../settings/variables/actions/new) with the name `API_URL` and set its value to your base URL (without a trailing slash).
 
-If you don't want to use the API server, or if you also want to be able to automatically mark PRs as ready for review or merge them on review success, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens):
+If you don't want to use the API server, or if you also want to be able to automatically mark PRs as ready for review or merge them on review success, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) (note that this token is different from the one used for [automatic self-updates](#automatic-self-updates) above):
 
 1. Go to <https://github.com/settings/tokens> and generate a new **classic** token with the `public_repo` scope.
 2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_TOKEN` and set its value to the personal access token you generated before.
@@ -32,13 +47,7 @@ If you don't want to use the API server, or if you also want to be able to autom
 > Tokens with the `public_repo` scope have almost full access to *all* public repositories, so they should only be used with great caution.
 > Unfortunately it is neither possible to create a classic PAT with a smaller scope nor is it possible to use fine-grained tokens (which aren't *that* fine-grained anyway) here, so it is recommended to not add a `GH_TOKEN` and simply use the nrgha-api server which doesn't require any configuration on your end.
 
-### Automatic Self-Updates (optional)
-If you want your fork to update itself on a regular basis, you need to generate a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens). Note that this token is different from the one used above!
-
-1. Go to <https://github.com/settings/personal-access-tokens> and generate a new **Fine-grained token** token with access to only your fork ("Repository access" > "Only select repositories") and "Read and write" permissions for both "Contents" and "Workflows".
-2. In your fork, go to "Settings" > "Secrets and variables" > "Actions" and [add a new repository secret](../../settings/secrets/actions/new) with the name `GH_SELF_UPDATE_TOKEN` and set its value to the personal access token you generated before.
-
-### Push to Attic Cache (optional)
+### Push to Attic Cache
 Follow these steps if you want nixpkgs-review-gha to push new packages to an [Attic](https://github.com/zhaofengli/attic) cache. Replace `$CACHE` with the name of your cache (e.g. `nixpkgs`) and `$SERVER` with the url of your Attic server (e.g. `https://attic.example.com/`):
 
 1. Generate a token with `push` and `pull` permissions: `atticadm make-token --sub nixpkgs-review-gha --validity 1y --pull $CACHE --push $CACHE`
@@ -46,14 +55,14 @@ Follow these steps if you want nixpkgs-review-gha to push new packages to an [At
 3. [Create a new variable](../../settings/variables/actions/new) with the name `ATTIC_CACHE` and set it to the value of `$CACHE`
 4. [Create a new secret](../../settings/secrets/actions/new) with the name `ATTIC_TOKEN` and set its value to the token you generated before.
 
-### Push to Cachix (optional)
+### Push to Cachix
 Follow these steps if you want nixpkgs-review-gha to push new packages to a [Cachix](https://www.cachix.org/) cache. Note: If both an Attic cache and a Cachix cache is configured, the Attic cache is preferred and the Cachix configuration is ignored.
 
 1. Go to https://app.cachix.org/ and set up your binary cache.
 2. [Create a new variable](../../settings/variables/actions/new) with the name `CACHIX_CACHE` and set it to the name of your Cachix cache.
 3. [Create a new secret](../../settings/secrets/actions/new) with the name `CACHIX_AUTH_TOKEN` and set its value to your auth token. If you are using a self-signed cache, you also need to create a `CACHIX_SIGNING_KEY` secret and set its value to your private signing key.
 
-### Extra Nix Config (optional)
+### Extra Nix Config
 If you have additional configuration you want to append to `/etc/nix/nix.conf`, you can [create a new variable](../../settings/variables/actions/new) with the name `EXTRA_NIX_CONFIG`.
 For example, if you want to configure nix to use additional substituters, set its value to the following:
 
@@ -62,7 +71,7 @@ extra-substituters = https://nix-community.cachix.org
 extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
 ```
 
-### Remote Builders (optional)
+### Remote Builders
 It is possible to configure nixpkgs-review-gha to use [remote builders](https://nix.dev/manual/nix/latest/advanced-topics/distributed-builds) either instead of or in addition to the local GitHub Actions runner.
 For this to work, the GitHub Actions runner needs to be able to connect to your remote builders via SSH, and you need to configure an SSH keypair for authentication.
 
@@ -89,7 +98,7 @@ Set the following [variables](../../settings/variables/actions):
 
 - `BUILDERS`: A newline separated list of build machines in the same format as the [`builders` option in `nix.conf`](https://nix.dev/manual/nix/latest/command-ref/conf-file#conf-builders). You will need to set the value of the third field (ssh identity) to `/etc/nix/ssh_id` which is where your `SSH_KEY` is placed. Your `SSH_CERT` should be picked up automatically, if you have configured one.
 
-For example, you can set `BUILDERS` to the following if you want to build on the [nix-community builders](https://nix-community.org/community-builders/). Keep in mind that these builders should generally [not be trusted](https://nix-community.org/community-builders/#notes-on-security-and-safety), so be careful with what you might push into the [binary caches](#push-to-attic-cache-optional) you configured above.
+For example, you can set `BUILDERS` to the following if you want to build on the [nix-community builders](https://nix-community.org/community-builders/). Keep in mind that these builders should generally [not be trusted](https://nix-community.org/community-builders/#notes-on-security-and-safety), so be careful with what you might push into the [binary caches](#push-to-attic-cache) you configured above.
 
 ```
 ssh-ng://YOUR_USERNAME@build-box.nix-community.org x86_64-linux /etc/nix/ssh_id 6 - benchmark,big-parallel,kvm,nixos-test,uid-range - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUVsSVE1NHFBeTdEaDYzckJ1ZFlLZGJ6SkhycmJyck1YTFlsN1BrbWs4OEg=
@@ -97,19 +106,13 @@ ssh-ng://YOUR_USERNAME@aarch64-build-box.nix-community.org aarch64-linux /etc/ni
 ssh-ng://YOUR_USERNAME@darwin-build-box.nix-community.org aarch64-darwin /etc/nix/ssh_id 2 - big-parallel - c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUtNSGhsY243ZlVwVXVpT0ZlSWhEcUJ6Qk5Gc2JOcXErTnB6dUdYM2U2enY=
 ```
 
-### Shortcuts on nixpkgs PR pages (optional)
+### Shortcuts on nixpkgs PR pages
 Add [`shortcut.user.js`](shortcut.user.js) as a userscript in your browser for `https://github.com/` for example using the [User JavaScript and CSS chrome extension](https://chromewebstore.google.com/detail/user-javascript-and-css/nbhcbdghjpllgmfilhnhkllmkecfmpld) or [Violentmonkey](https://violentmonkey.github.io/).
 
 The userscript assumes that you forked this repository to your personal account without changing its name. However, if you forked the repo to an organization instead or used a custom repo name or if you would like to use a different repo you have access to, you need to explicitly configure the userscript by updating the `repo` constant at the top of the file to point to the repository you would like to use.
 
 > [!TIP]
 > Opening the [raw file](shortcut.user.js?raw=true) with Violentmonkey installed will prompt for installation.
-
-## Usage
-1. Open the [review workflow in the "Actions" tab](../../actions/workflows/review.yml)
-2. Click on "Run workflow"
-3. Enter the number of the pull request in nixpkgs you would like to review and click on "Run workflow"
-4. Reload the page if necessary and click on the review run to see the logs
 
 ## Experimental Features
 
