@@ -9,7 +9,7 @@ Run [nixpkgs-review](https://github.com/Mic92/nixpkgs-review) in GitHub Actions
 - Automatically post results on the reviewed pull request
 - Optionally start an [Upterm](https://upterm.dev/) session after nixpkgs-review has finished to allow interactive testing/debugging via SSH
 - Push new packages to an [Attic](https://github.com/zhaofengli/attic) or [Cachix](https://www.cachix.org/) cache
-- After a successful review, automatically mark the PR as ready for review, approve it, or merge it (directly or via the [nixpkgs-merge-bot](https://github.com/NixOS/nixpkgs-merge-bot))
+- After a successful review, automatically mark the PR as ready for review, approve it, or merge it (directly or via the [nixpkgs-merge-bot](https://github.com/NixOS/nixpkgs/blob/master/ci/README.md#nixpkgs-merge-bot))
 - Optionally use [Nix remote builders](https://nix.dev/manual/nix/latest/advanced-topics/distributed-builds) (either in addition to or instead of the local GitHub Actions runner).
 - Add a "Run nixpkgs-review" shortcut to pull request pages in nixpkgs
 
