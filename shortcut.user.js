@@ -44,6 +44,7 @@ const reviewDefaults = ({
 const prTrackers = [
   { name: "nixpk.gs", toUrl: pr => `https://nixpk.gs/pr-tracker.html?pr=${pr}` },
   { name: "ocfox.me", toUrl: pr => `https://nixpkgs-tracker.ocfox.me/?pr=${pr}` },
+  { name: "nix.ny4.dev", toUrl: pr => `https://nix.ny4.dev/?pr=${pr}` },
 ];
 
 const sleep = duration => new Promise(resolve => setTimeout(resolve, duration));
