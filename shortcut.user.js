@@ -61,6 +61,16 @@ const query = async (doc, sel) => {
 
 const queryText = sel => document.querySelector(sel)?.innerText ?? null;
 
+const getLabels = () => [...document.querySelectorAll("div.js-issue-labels > a")].map(x => x.innerText);
+const getRebuilds = labels => ({
+  hasLinuxRebuilds: !labels.some(l => /rebuild-linux: 0$/.test(l)),
+  hasDarwinRebuilds: !labels.some(l => /rebuild-darwin: 0$/.test(l)),
+});
+const getState = () =>
+  queryText("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span, span.State")
+    ?.trim()
+    .toUpperCase() ?? null;
+
 // Fields whose element is missing are null.
 const getPrDetails = pr => {
   const title = queryText(
@@ -82,15 +92,11 @@ const getPrDetails = pr => {
           ];
     },
   );
-  const labels = [...document.querySelectorAll("div.js-issue-labels > a")].map(x => x.innerText);
+  const labels = getLabels();
   const author = document.querySelector(".js-discussion > :first-child a.author")?.href.split("/").at(-1) ?? null;
   const authoredByMe = author !== null && author === user;
-  const hasLinuxRebuilds = !labels.some(l => /rebuild-linux: 0$/.test(l));
-  const hasDarwinRebuilds = !labels.some(l => /rebuild-darwin: 0$/.test(l));
-  const state =
-    queryText("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span, span.State")
-      ?.trim()
-      .toUpperCase() ?? null;
+  const { hasLinuxRebuilds, hasDarwinRebuilds } = getRebuilds(labels);
+  const state = getState();
 
   return {
     title,
@@ -169,12 +175,14 @@ const setupActionsPage = async () => {
   document.querySelector('details .workflow-dispatch button[type=submit], [role="dialog"] button[type=submit]').focus();
 };
 
-const setupPrPage = async () => {
+// Runs on every DOM mutation.
+const setupPrPage = () => {
   const match = /^https:\/\/github.com\/NixOS\/nixpkgs\/pull\/(\d+)([?#].*)?$/i.exec(location.href);
   if (match === null) return;
 
   const pr = match[1];
-  const actions = await query(document, "div[data-component=PH_Actions], .gh-header-show .gh-header-actions");
+  const actions = document.querySelector("div[data-component=PH_Actions], .gh-header-show .gh-header-actions");
+  if (actions === null) return;
 
   if (actions.querySelector(".run-nixpkgs-review") === null && repo) {
     const btn = document.createElement("button");
@@ -190,9 +198,12 @@ const setupPrPage = async () => {
     };
   }
 
-  const { hasLinuxRebuilds, hasDarwinRebuilds, state } = getPrDetails(pr);
-  if ((!hasLinuxRebuilds && !hasDarwinRebuilds) || state == "MERGED") {
-    actions.querySelector(".run-nixpkgs-review")?.setAttribute("aria-disabled", true);
+  const runButton = actions.querySelector(".run-nixpkgs-review");
+  if (runButton !== null && runButton.getAttribute("aria-disabled") !== "true") {
+    const { hasLinuxRebuilds, hasDarwinRebuilds } = getRebuilds(getLabels());
+    if ((!hasLinuxRebuilds && !hasDarwinRebuilds) || getState() === "MERGED") {
+      runButton.setAttribute("aria-disabled", true);
+    }
   }
 
   if (actions.querySelector(".goto-pr-tracker") === null) {
