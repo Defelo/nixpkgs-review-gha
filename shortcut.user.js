@@ -26,7 +26,7 @@ const reviewDefaults = ({
   const darwinSandbox = "relaxed";
 
   const hasRebuilds = hasLinuxRebuilds || hasDarwinRebuilds;
-  const targetsStableRelease = targetBranch.match(/-\d\d\.\d\d$/);
+  const targetsStableRelease = targetBranch?.match(/-\d\d\.\d\d$/);
 
   return {
     // "branch": "main",
@@ -59,13 +59,15 @@ const query = async (doc, sel) => {
   }
 };
 
+const queryText = sel => document.querySelector(sel)?.innerText ?? null;
+
+// Fields whose element is missing are null.
 const getPrDetails = pr => {
-  const title = document.querySelector(
+  const title = queryText(
     "div[data-component=TitleArea] h1 > [data-component=Text], bdi.js-issue-title.markdown-title",
-  ).innerText;
-  const targetBranch = document
-    .querySelector("[data-component=PH_Title] a[data-component=BranchName]")
-    .innerText.replace(/^NixOS:/, "");
+  );
+  const targetBranch =
+    queryText("[data-component=PH_Title] a[data-component=BranchName]")?.replace(/^NixOS:/, "") ?? null;
   const commits = [...document.querySelectorAll(".TimelineItem-body a.markdown-title[href*='/commits/']")].flatMap(
     ({ title, href }) => {
       const match = /\/NixOS\/nixpkgs\/pull\/(\d+)\/commits\/([0-9a-f]+)$/i.exec(href);
@@ -81,14 +83,14 @@ const getPrDetails = pr => {
     },
   );
   const labels = [...document.querySelectorAll("div.js-issue-labels > a")].map(x => x.innerText);
-  const author = document.querySelector(".js-discussion > :first-child a.author").href.split("/").at(-1);
-  const authoredByMe = author === user;
+  const author = document.querySelector(".js-discussion > :first-child a.author")?.href.split("/").at(-1) ?? null;
+  const authoredByMe = author !== null && author === user;
   const hasLinuxRebuilds = !labels.some(l => /rebuild-linux: 0$/.test(l));
   const hasDarwinRebuilds = !labels.some(l => /rebuild-darwin: 0$/.test(l));
-  const state = document
-    .querySelector("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span, span.State")
-    .innerText.trim()
-    .toUpperCase();
+  const state =
+    queryText("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span, span.State")
+      ?.trim()
+      .toUpperCase() ?? null;
 
   return {
     title,
@@ -180,7 +182,10 @@ const setupPrPage = async () => {
     btn.innerText = "Run nixpkgs-review";
     actions.prepend(btn);
     btn.onclick = () => {
-      const params = new URLSearchParams({ ...reviewDefaults(getPrDetails(pr)), pr });
+      const details = getPrDetails(pr);
+      const missing = ["title", "targetBranch", "author", "state"].filter(key => details[key] === null);
+      if (missing.length > 0) console.warn(`nixpkgs-review-gha: PR page elements not found: ${missing.join(", ")}`);
+      const params = new URLSearchParams({ ...reviewDefaults(details), pr });
       window.open(`https://github.com/${repo}/actions/workflows/review.yml#dispatch:${params}`);
     };
   }
