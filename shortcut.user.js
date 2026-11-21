@@ -67,9 +67,7 @@ const getRebuilds = labels => ({
   hasDarwinRebuilds: !labels.some(l => /rebuild-darwin: 0$/.test(l)),
 });
 const getState = () =>
-  queryText("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span, span.State")
-    ?.trim()
-    .toUpperCase() ?? null;
+  queryText("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span")?.trim().toUpperCase() ?? null;
 
 // Fields whose element is missing are null.
 const getPrDetails = pr => {
