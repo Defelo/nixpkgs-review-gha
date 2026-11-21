@@ -6,7 +6,10 @@
 // @run-at      document-idle
 // ==/UserScript==
 
-const user = document.querySelector("header.GlobalNav button[data-login]")?.getAttribute("data-login") ?? null;
+const user =
+  document.querySelector('meta[name="user-login"]')?.content ||
+  document.querySelector("header.GlobalNav button[data-login]")?.getAttribute("data-login") ||
+  null;
 
 const repo = user ? `${user}/nixpkgs-review-gha` : null;
 
@@ -58,7 +61,7 @@ const query = async (doc, sel) => {
 
 const getPrDetails = pr => {
   const title = document.querySelector(
-    "div[data-component=TitleArea] .text-normal.markdown-title, bdi.js-issue-title.markdown-title",
+    "div[data-component=TitleArea] h1 > [data-component=Text], bdi.js-issue-title.markdown-title",
   ).innerText;
   const targetBranch = document
     .querySelector("[data-component=PH_Title] a[data-component=BranchName]")
