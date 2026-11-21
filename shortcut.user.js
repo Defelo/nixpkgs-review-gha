@@ -197,11 +197,10 @@ const setupPrPage = () => {
   }
 
   const runButton = actions.querySelector(".run-nixpkgs-review");
-  if (runButton !== null && runButton.getAttribute("aria-disabled") !== "true") {
+  if (runButton !== null) {
     const { hasLinuxRebuilds, hasDarwinRebuilds } = getRebuilds(getLabels());
-    if ((!hasLinuxRebuilds && !hasDarwinRebuilds) || getState() === "MERGED") {
-      runButton.setAttribute("aria-disabled", true);
-    }
+    // A hint only: the button stays clickable.
+    runButton.setAttribute("aria-disabled", (!hasLinuxRebuilds && !hasDarwinRebuilds) || getState() === "MERGED");
   }
 
   if (actions.querySelector(".goto-pr-tracker") === null) {
