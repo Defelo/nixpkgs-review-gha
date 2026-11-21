@@ -190,6 +190,8 @@ const setupPrPage = () => {
     btn.onclick = () => {
       const details = getPrDetails(pr);
       const missing = ["title", "targetBranch", "author", "state"].filter(key => details[key] === null);
+      // The labels container exists even when the PR has no labels.
+      if (document.querySelector("div.js-issue-labels") === null) missing.push("labels");
       if (missing.length > 0) console.warn(`nixpkgs-review-gha: PR page elements not found: ${missing.join(", ")}`);
       const params = new URLSearchParams({ ...reviewDefaults(details), pr });
       window.open(`https://github.com/${repo}/actions/workflows/review.yml#dispatch:${params}`);
