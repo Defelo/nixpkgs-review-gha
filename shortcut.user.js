@@ -61,21 +61,36 @@ const query = async (doc, sel) => {
 
 const queryText = sel => document.querySelector(sel)?.innerText ?? null;
 
-const getLabels = () => [...document.querySelectorAll("div.js-issue-labels > a")].map(x => x.innerText);
+// GitHub serves two PR page layouts. The overview layout puts state, author and branches in the header description.
+const overviewHeader = "[data-component='PageHeader.Description']";
+// Present in both layouts even when the PR has no labels.
+const labelsContainer = "div.js-issue-labels, section[aria-label=Labels]";
+
+const getLabels = () =>
+  [
+    ...document.querySelectorAll("div.js-issue-labels > a, section[aria-label=Labels] [data-component=LabelGroup] a"),
+  ].map(x => x.innerText);
 const getRebuilds = labels => ({
   hasLinuxRebuilds: !labels.some(l => /rebuild-linux: 0$/.test(l)),
   hasDarwinRebuilds: !labels.some(l => /rebuild-darwin: 0$/.test(l)),
 });
 const getState = () =>
-  queryText("div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span")?.trim().toUpperCase() ?? null;
+  queryText(
+    `div[data-component=TitleArea] div[data-component=PH_LeadingVisual] span, ${overviewHeader} [data-component=StateLabel]`,
+  )
+    ?.trim()
+    .toUpperCase() ?? null;
 
 // Fields whose element is missing are null.
 const getPrDetails = pr => {
   const title = queryText(
     "div[data-component=TitleArea] h1 > [data-component=Text], bdi.js-issue-title.markdown-title",
   );
+  // The base branch comes before the head branch.
   const targetBranch =
-    queryText("[data-component=PH_Title] a[data-component=BranchName]")?.replace(/^NixOS:/, "") ?? null;
+    queryText(
+      `[data-component=PH_Title] a[data-component=BranchName], ${overviewHeader} a[data-component=BranchName]`,
+    )?.replace(/^NixOS:/, "") ?? null;
   const commits = [...document.querySelectorAll(".TimelineItem-body a.markdown-title[href*='/commits/']")].flatMap(
     ({ title, href }) => {
       const match = /\/NixOS\/nixpkgs\/pull\/(\d+)\/commits\/([0-9a-f]+)$/i.exec(href);
@@ -91,7 +106,11 @@ const getPrDetails = pr => {
     },
   );
   const labels = getLabels();
-  const author = document.querySelector(".js-discussion > :first-child a.author")?.href.split("/").at(-1) ?? null;
+  const author =
+    document
+      .querySelector(`.js-discussion > :first-child a.author, ${overviewHeader} a[data-hovercard-type=user]`)
+      ?.href.split("/")
+      .at(-1) ?? null;
   const authoredByMe = author !== null && author === user;
   const { hasLinuxRebuilds, hasDarwinRebuilds } = getRebuilds(labels);
   const state = getState();
@@ -195,8 +214,7 @@ const setupPrPage = () => {
     btn.onclick = () => {
       const details = getPrDetails(pr);
       const missing = ["title", "targetBranch", "author", "state"].filter(key => details[key] === null);
-      // The labels container exists even when the PR has no labels.
-      if (document.querySelector("div.js-issue-labels") === null) missing.push("labels");
+      if (document.querySelector(labelsContainer) === null) missing.push("labels");
       const params = new URLSearchParams({ ...reviewDefaults(details), pr });
       if (missing.length > 0) {
         console.warn(`nixpkgs-review-gha: PR page elements not found: ${missing.join(", ")}`);
