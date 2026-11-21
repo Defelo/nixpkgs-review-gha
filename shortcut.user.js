@@ -168,7 +168,12 @@ const setupActionsPage = async () => {
   const branch = inputs.get("branch");
   if (branch) await setBranch(branch);
 
-  [...inputs].filter(([name]) => name !== "branch").forEach(([name, value]) => setInput(name, value));
+  [...inputs]
+    .filter(([name]) => !["branch", "missing"].includes(name))
+    .forEach(([name, value]) => setInput(name, value));
+
+  const missing = inputs.get("missing");
+  if (missing) alert(`PR page elements not found: ${missing}. Check the workflow inputs before running.`);
 
   document.querySelector('details .workflow-dispatch button[type=submit], [role="dialog"] button[type=submit]').focus();
 };
@@ -192,8 +197,13 @@ const setupPrPage = () => {
       const missing = ["title", "targetBranch", "author", "state"].filter(key => details[key] === null);
       // The labels container exists even when the PR has no labels.
       if (document.querySelector("div.js-issue-labels") === null) missing.push("labels");
-      if (missing.length > 0) console.warn(`nixpkgs-review-gha: PR page elements not found: ${missing.join(", ")}`);
       const params = new URLSearchParams({ ...reviewDefaults(details), pr });
+      if (missing.length > 0) {
+        console.warn(`nixpkgs-review-gha: PR page elements not found: ${missing.join(", ")}`);
+        // Reported on the workflow page: an alert here can outlast the click's user activation, and the new tab is
+        // then blocked as a popup.
+        params.set("missing", missing.join(", "));
+      }
       window.open(`https://github.com/${repo}/actions/workflows/review.yml#dispatch:${params}`);
     };
   }
