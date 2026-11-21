@@ -192,7 +192,7 @@ const setupPrPage = async () => {
 
   const { hasLinuxRebuilds, hasDarwinRebuilds, state } = getPrDetails(pr);
   if ((!hasLinuxRebuilds && !hasDarwinRebuilds) || state == "MERGED") {
-    actions.querySelector(".run-nixpkgs-review").setAttribute("aria-disabled", true);
+    actions.querySelector(".run-nixpkgs-review")?.setAttribute("aria-disabled", true);
   }
 
   if (actions.querySelector(".goto-pr-tracker") === null) {
