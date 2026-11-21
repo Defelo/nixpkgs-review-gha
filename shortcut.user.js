@@ -215,6 +215,9 @@ const setupPrPage = () => {
       };
     }
   }
+
+  // Logged out, GitHub hides the actions bar, which is empty then.
+  actions.classList.remove("d-none");
 };
 
 new MutationObserver(setupPrPage).observe(document, { subtree: true, childList: true });
