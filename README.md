@@ -107,7 +107,7 @@ ssh-ng://YOUR_USERNAME@darwin-build-box.nix-community.org aarch64-darwin /etc/ni
 ```
 
 ### Shortcuts on nixpkgs PR pages
-Add [`shortcut.user.js`](shortcut.user.js) as a userscript in your browser for `https://github.com/` for example using the [User JavaScript and CSS chrome extension](https://chromewebstore.google.com/detail/user-javascript-and-css/nbhcbdghjpllgmfilhnhkllmkecfmpld) or [Violentmonkey](https://violentmonkey.github.io/).
+Add [`shortcut.user.js`](shortcut.user.js) as a userscript in your browser for `https://github.com/` for example using the [Violentmonkey](https://violentmonkey.github.io/) extension.
 
 The userscript assumes that you forked this repository to your personal account without changing its name. However, if you forked the repo to an organization instead or used a custom repo name or if you would like to use a different repo you have access to, you need to explicitly configure the userscript by updating the `repo` constant at the top of the file to point to the repository you would like to use.
 
